@@ -436,6 +436,7 @@ static const char *opsmenu[] = {
 	"[pwd]     Print current directory   ",
 	"[sync]    Sync filesystems          ",
 	"[panic]   Intentional panic         ",
+	"[dth]     Run with DB_THREADS debugging messages enabled",
 	"[q]       Quit and shut down        ",
 	NULL
 };
