@@ -396,6 +396,20 @@ cmd_kheapstats(int nargs, char **args)
 	return 0;
 }
 
+/*
+Command to Display Dth Debugging Message
+*/
+static int cmd_dth_message(int nargs, char **args)
+{
+	(void)nargs;
+	(void)args;
+
+	dbflags = DB_THREADS;
+	
+	return 0;
+}
+
+
 ////////////////////////////////////////
 //
 // Menus.
@@ -550,6 +564,9 @@ static struct {
 	{ "q",		cmd_quit },
 	{ "exit",	cmd_quit },
 	{ "halt",	cmd_quit },
+
+	/*Added Feature */
+	{ "dth",        cmd_dth_message },
 
 #if OPT_SYNCHPROBS
 	/* in-kernel synchronization problem(s) */
