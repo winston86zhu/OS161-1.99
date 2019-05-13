@@ -69,7 +69,7 @@
 #if 1 /* no debug asserts */
 #define DEBUGASSERT(expr) ((void)(expr))
 #else
-#define DEBUGASSERT(expr) \
+#define DEBUGASSERT(expr) 
 	((expr) ? (void)0 : badassert(#expr, __FILE__, __LINE__, __func__))
 #endif
 

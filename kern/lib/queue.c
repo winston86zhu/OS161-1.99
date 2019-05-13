@@ -1,5 +1,5 @@
 /*
- * Queue of void pointers. See queue.h for details.
+ * Queue of void pointers. See queue.h for details.s
  */
 
 #include <types.h>

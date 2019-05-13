@@ -62,7 +62,7 @@ loudthread(void *junk, unsigned long num)
 	(void)junk;
 
 	for (i=0; i<120; i++) {
-		putch(ch);
+		putch(ch);//print 120 times of threads every single time
 	}
 	V(tsem);
 }
@@ -93,9 +93,7 @@ quietthread(void *junk, unsigned long num)
 	V(tsem);
 }
 
-static
-void
-runthreads(int doloud)
+static void runthreads(int doloud)
 {
 	char name[16];
 	int i, result;

@@ -214,7 +214,7 @@ cmd_chdir(int nargs, char **args)
 }
 
 /*
- * Command for printing the current directory.
+ * Command for printing the current directory.s
  */
 static
 int
@@ -404,7 +404,7 @@ static int cmd_dth_message(int nargs, char **args)
 	(void)nargs;
 	(void)args;
 
-	dbflags = DB_THREADS;
+	dbflags = 0x0010; // OR DB_THREADS
 	
 	return 0;
 }
