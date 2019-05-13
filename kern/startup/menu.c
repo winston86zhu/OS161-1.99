@@ -404,7 +404,8 @@ static int cmd_dth_message(int nargs, char **args)
 	(void)nargs;
 	(void)args;
 
-	dbflags = 0x0010; // OR DB_THREADS
+	dbflags = dbflags | DB_THREADS; // OR DB_THREADS
+	//If only changing to DB_THREADS lossing the information of original dbflags 
 	
 	return 0;
 }

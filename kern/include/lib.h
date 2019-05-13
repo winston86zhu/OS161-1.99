@@ -76,6 +76,7 @@
 /*
  * Bit flags for DEBUG()
  */
+//does bitwise mean we tyrn on multiple flags
 #define DB_LOCORE      0x0001
 #define DB_SYSCALL     0x0002
 #define DB_INTERRUPT   0x0004
