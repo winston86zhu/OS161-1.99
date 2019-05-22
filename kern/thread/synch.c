@@ -182,27 +182,44 @@ lock_destroy(struct lock *lock)
 void
 lock_acquire(struct lock *lock)
 {
-        // Write this
-
-        (void)lock;  // suppress warning until code gets written
+    // Write this
+    KASSERT(lock != NULL);
+    KASSERT(!lock_do_i_hold);
+    spinlock_acquire(lock->lk_spinlock);
+    while(lock->lk_thread != NULL){
+        wchan_lock(lock->lk_wechan);
+        spinlock_release(lock->lk_spinlock);
+        wchan_sleep(lock->lk_wechan);
+        spinlock_acquire(lock->lk_spinlock);
+    }
+    lock->lk_thread = curthread;
+    spinlock_release(lock->lk_spinlock);
+    (void)lock;  // suppress warning until code gets written
 }
 
 void
 lock_release(struct lock *lock)
 {
-        // Write this
+    // Write this
+    KASSERT(lock != NULL);
+    KASSERT(lock_do_i_hold);
+    spinlock_acquire(lock->lk_spinlock);
 
-        (void)lock;  // suppress warning until code gets written
+    lock->lk_thread = NULL;
+    wchan_wakeone(lock->lk_wechan);
+
+    spinlock_release(lock->lk_spinlock);
+    (void)lock;  // suppress warning until code gets written
 }
 
 bool
 lock_do_i_hold(struct lock *lock)
 {
-        // Write this
+    // Write this
+    KASSERT(lock->lk_thread == curthread);
+    (void)lock;  // suppress warning until code gets written
 
-        (void)lock;  // suppress warning until code gets written
-
-        return true; // dummy until code gets written
+    return true; // dummy until code gets written
 }
 
 ////////////////////////////////////////////////////////////

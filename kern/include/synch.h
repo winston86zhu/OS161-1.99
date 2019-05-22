@@ -69,11 +69,17 @@ void V(struct semaphore *);
  * When the lock is created, no thread should be holding it. Likewise,
  * when the lock is destroyed, no thread should be holding it.
  *
- * The name field is for easier debugging. A copy of the name is
+ * The name field is for easier debugging. A copy of the name iss
  * (should be) made internally.
  */
 struct lock {
         char *lk_name;
+        // A1 Adding
+        struct spinlock* lk_spinlock; //Call lock->spin
+        struct wchan* lk_wechan; //
+        struct thread * volatile lk_thread; //?
+        //volatile bool held;
+
         // add what you need here
         // (don't forget to mark things volatile as needed)
 };
@@ -88,7 +94,7 @@ void lock_acquire(struct lock *);
  *    lock_release - Free the lock. Only the thread holding the lock may do
  *                   this.
  *    lock_do_i_hold - Return true if the current thread holds the lock; 
- *                   false otherwise.
+ *                   false otherwise.s
  *
  * These operations must be atomic. You get to write them.
  */
