@@ -76,9 +76,10 @@ struct lock {
         char *lk_name;
         // A1 Adding
         struct spinlock* lk_spinlock; //Call lock->spin
-        struct wchan* lk_wechan; //
-        struct thread * volatile lk_thread; //?
-        //volatile bool held;
+        struct wchan* lk_wechan;
+        volatile struct thread* lk_thread; 
+        volatile bool held;
+
 
         // add what you need here
         // (don't forget to mark things volatile as needed)
@@ -121,6 +122,8 @@ struct cv {
         char *cv_name;
         // add what you need here
         // (don't forget to mark things volatile as needed)
+        // ADD A1
+        struct wchan * cv_wchan;
 };
 
 struct cv *cv_create(const char *name);
