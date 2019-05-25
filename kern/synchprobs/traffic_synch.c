@@ -22,13 +22,19 @@
  * replace this with declarations of any synchronization and other variables you need here
  */
 static struct semaphore *intersectionSem;
-
+static struct cv *intersectioncv;
+static struct lock* intersection_lock; 
+struct vehicle
+{
+  Direction from;
+  Direction dest;
+};
 
 /* 
  * The simulation driver will call this function once before starting
  * the simulation
  *
- * You can use it to initialize synchronization and other variables.
+ * You can use it to initialize synchronization and other variables
  * 
  */
 void
@@ -36,10 +42,21 @@ intersection_sync_init(void)
 {
   /* replace this default implementation with your own implementation */
 
-  intersectionSem = sem_create("intersectionSem",1);
+  /*intersectionSem = sem_create("intersectionSem",1);
   if (intersectionSem == NULL) {
     panic("could not create intersection semaphore");
   }
+  return;*/
+  intersectioncv = cv_create("My_CV");
+  if (intersectioncv == NULL){
+    panic("Could not create CV");
+  }
+  // cv will need a lock as parameter
+  intersection_lock = lock_create("My_lock");
+  if (intersection_lock == NULL) {
+    panic("could not initialize lock for cv");
+  }
+
   return;
 }
 
@@ -54,8 +71,11 @@ void
 intersection_sync_cleanup(void)
 {
   /* replace this default implementation with your own implementation */
-  KASSERT(intersectionSem != NULL);
-  sem_destroy(intersectionSem);
+  KASSERT(intersectioncv != NULL);
+  KASSERT(intersection_lock != NULL);
+  lock_destroy(intersection_lock);
+  cv_destroy(intersectioncv);
+  return;
 }
 
 
@@ -76,10 +96,15 @@ void
 intersection_before_entry(Direction origin, Direction destination) 
 {
   /* replace this default implementation with your own implementation */
-  (void)origin;  /* avoid compiler complaint about unused parameter */
-  (void)destination; /* avoid compiler complaint about unused parameter */
-  KASSERT(intersectionSem != NULL);
-  P(intersectionSem);
+  KASSERT(intersection_lock != NULL);
+  KASSERT(intersectioncv != NULL);
+
+  /*Create a new vehicle */
+  vehicle *new_v = kmalloc(sizeof(struct vehicle));
+  new_v->from = origin;
+  new_v->dest = destination;
+  
+  //P(intersectionSem);
 }
 
 
