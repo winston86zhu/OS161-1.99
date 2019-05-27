@@ -61,7 +61,7 @@ static bool can_enter_single(vehicle * new_v, vehicle * exist_v){
 		(new_v->from == exist_v->dest && new_v->dest == exist_v->from)){
 			return true;
 		}
-	/*Different Destination and at least one is making right turn */
+	/*Different Destination and at least one is making right turns */
 	else if ((new_v->dest != exist_v->dest) &&
 		(test_rightturn(new_v->from, new_v->dest) ||
 		test_rightturn(exist_v->from, exist_v->dest))){
