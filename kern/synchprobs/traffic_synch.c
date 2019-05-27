@@ -225,10 +225,9 @@ intersection_after_exit(Direction origin, Direction destination)
 	}*/
 	if(waiting_v + passing_v > 0){
   	cv_wait(end_cv, intersection_lock);
-	} else {
+	} 
 		cv_broadcast(end_cv, intersection_lock);
-	}
+	
 	lock_release(intersection_lock);
 }
-
 
