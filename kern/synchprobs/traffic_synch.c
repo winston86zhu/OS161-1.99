@@ -26,8 +26,12 @@
 static struct cv *intersectioncv;
 static struct lock* intersection_lock; 
 static struct array * intersection_all;
+static struct cv * end_cv;
 static volatile int waiting_v = 0; 
 static volatile int passing_v = 0; 
+//static struct array * all_from;
+//static struct array * all_to;
+
 
 typedef struct vehicle
 {
@@ -47,14 +51,12 @@ typedef struct vehicle
 	return true;
 }*/
 
-
 static bool test_rightturn(Direction v_from, Direction v_to){
 	return ((v_from == east && v_to == north)||
 		(v_from == north && v_to == west)||
 		(v_from == west && v_to == south)||
 		(v_from == south && v_to == east));
 } 
-
 static bool can_enter_single(vehicle * new_v, vehicle * exist_v){
 	/* When vehicles are in the same road*/
 	if(new_v->from == exist_v->from || 
@@ -114,6 +116,8 @@ intersection_sync_init(void)
 	if (intersection_all == NULL) {
 		panic("could not initialize array for vehicles");
 	}
+
+	end_cv = cv_create("End cv");
 	array_init(intersection_all);
 
 	return;
@@ -135,6 +139,7 @@ intersection_sync_cleanup(void)
 	KASSERT(intersection_all != NULL);
 	lock_destroy(intersection_lock);
 	cv_destroy(intersectioncv);
+	cv_destroy(end_cv);
 	array_cleanup(intersection_all);
 	array_destroy(intersection_all);
 	return;
@@ -215,5 +220,15 @@ intersection_after_exit(Direction origin, Direction destination)
       break;
 		}
 	}
+/*	if(waiting_v > 0){
+		cv_broadcast(intersectioncv, intersection_lock);
+	}*/
+	if(waiting_v + passing_v > 0){
+  	cv_wait(end_cv, intersection_lock);
+	} else {
+		cv_broadcast(end_cv, intersection_lock);
+	}
 	lock_release(intersection_lock);
 }
+
+
