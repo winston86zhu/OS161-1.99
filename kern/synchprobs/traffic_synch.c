@@ -22,15 +22,12 @@
 /*
  * replace this with declarations of any synchronization and other variables you need here
  */
-//static struct semaphore *intersectionSem;
 static struct cv *intersectioncv;
 static struct lock* intersection_lock; 
 static struct array * intersection_all;
 static struct cv * end_cv;
 static volatile int waiting_v = 0; 
 static volatile int passing_v = 0; 
-//static struct array * all_from;
-//static struct array * all_to;
 
 
 typedef struct vehicle
@@ -39,24 +36,13 @@ typedef struct vehicle
 	Direction dest;
 } vehicle;
 
-
-/*bool all_same_dir(Direction v_from, Direction v_to){
-	KASSERT(array_num(intersection_all) != 0);
-	for(unsigned int i=0; i < array_num(intersection_all); i++){
-		if(!((array_get(intersection_all,i)->from == v_from && array_get(intersection_all,i)->from == v_to)||
-		 (array_get(intersection_all,i)->from == v_to && array_get(intersection_all,i)->from == v_from))){
-			return false;
-		}
-	}
-	return true;
-}*/
-
 static bool test_rightturn(Direction v_from, Direction v_to){
 	return ((v_from == east && v_to == north)||
 		(v_from == north && v_to == west)||
 		(v_from == west && v_to == south)||
 		(v_from == south && v_to == east));
-} 
+}
+
 static bool can_enter_single(vehicle * new_v, vehicle * exist_v){
 	/* When vehicles are in the same road*/
 	if(new_v->from == exist_v->from || 
@@ -174,9 +160,9 @@ intersection_before_entry(Direction origin, Direction destination)
 
 	lock_acquire(intersection_lock);
 	while (!can_enter(new_v)) {
-    waiting_v++;
-    cv_wait(intersectioncv, intersection_lock);
-    waiting_v--;
+	    waiting_v++;
+	    cv_wait(intersectioncv, intersection_lock);
+	    waiting_v--;
   }
 
   array_add(intersection_all,new_v,NULL);
@@ -217,16 +203,14 @@ intersection_after_exit(Direction origin, Direction destination)
 			array_remove(intersection_all,i);
 			passing_v--;
 			cv_broadcast(intersectioncv, intersection_lock);
-      break;
+      		break;
 		}
 	}
-/*	if(waiting_v > 0){
-		cv_broadcast(intersectioncv, intersection_lock);
-	}*/
-	if(waiting_v + passing_v > 0){
-  	cv_wait(end_cv, intersection_lock);
+	if(waiting_v != 0){
+  		cv_wait(end_cv, intersection_lock);
 	} 
-		cv_broadcast(end_cv, intersection_lock);
+	cv_broadcast(end_cv, intersection_lock);
+	//Wake any other threads that are waiting
 	
 	lock_release(intersection_lock);
 }

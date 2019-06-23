@@ -9,6 +9,8 @@
 #include <thread.h>
 #include <addrspace.h>
 #include <copyinout.h>
+#include "opt-A2.h"
+#include <array.h>
 
   /* this implementation of sys__exit does not do anything with the exit code */
   /* this needs to be fixed to get exit() and waitpid() working properly */
@@ -19,7 +21,15 @@ void sys__exit(int exitcode) {
   struct proc *p = curproc;
   /* for now, just include this to keep the compiler from complaining about
      an unused variable */
+  #if OPT_A2
+  KASSERT(l)
+
+
+  #else
   (void)exitcode;
+  #endif
+
+
 
   DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",exitcode);
 

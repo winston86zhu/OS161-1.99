@@ -132,12 +132,12 @@ P(struct semaphore *sem)
 void
 V(struct semaphore *sem)
 {
-        KASSERT(sem != NULL);
+    KASSERT(sem != NULL);
 
     spinlock_acquire(&sem->sem_lock);
 
-        sem->sem_count++;
-        KASSERT(sem->sem_count > 0);
+    sem->sem_count++;
+    KASSERT(sem->sem_count > 0);
     wchan_wakeone(sem->sem_wchan);
 
     spinlock_release(&sem->sem_lock);
