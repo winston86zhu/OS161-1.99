@@ -50,6 +50,7 @@
 #include <vfs.h>
 #include <synch.h>
 #include <kern/fcntl.h>  
+#include "opt-A2.h"
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -69,6 +70,26 @@ static struct semaphore *proc_count_mutex;
 struct semaphore *no_proc_sem;   
 #endif  // UW
 
+#if OPT_A2
+int MAXP = 64;
+bool pid_table[64];
+
+/* Gen the next available PID*/
+pid_t pid_gen(){
+	int retval = -1;
+	lock_acquire(lk_proc);
+	for(int i = 2; i <= MAXP; i++){
+		if(pid_table[i] == 0){
+			pid_table[i] = 1;
+			retval = 1;
+			break;
+		}
+	}
+	lock_release(lk_proc);
+	return retval;
+}
+
+#endif
 
 
 /*
@@ -103,6 +124,32 @@ proc_create(const char *name)
 	proc->console = NULL;
 #endif // UW
 
+#ifdef OPT_A2
+	proc->pid = pid_gen();
+	proc->parent_p = NULL;
+	proc->parent_pid = -1;
+	proc->exitcode = false;
+
+	proc->alive = true;
+	proc->parent_alive = false;
+
+	proc->proc_cv = cv_create("fork_cv");
+	/*copy from cv create A1*/
+	if(proc->proc_cv == NULL){
+		kfree(proc);
+		return NULL;
+	}
+
+	proc->p_children = array_create();
+	if(proc->p_children == NULL){
+		kfree(proc);
+		return NULL;
+	}
+	array_init(proc->p_children);
+
+
+#endif
+
 	return proc;
 }
 
@@ -135,6 +182,37 @@ proc_destroy(struct proc *proc)
 		VOP_DECREF(proc->p_cwd);
 		proc->p_cwd = NULL;
 	}
+
+	#if OPT_A2
+	P(proc_count_mutex);
+
+	cv_destroy(proc->proc_cv);
+	for(int i = array_num(proc->p_children); i > 0; i--){
+		lock_acquire(lk_proc);
+		struct proc *get_child = array_get(proc->p_children, i - 1);
+		KASSERT(get_child != NULL);
+		if(get_child->alive == true){
+			get_child->parent_p = NULL;
+			get_child->parent_pid = -1;
+			get_child->alive = false;
+			array_remove(proc->p_children, i -1);
+
+		} else if (get_child->alive == false){
+			KASSERT(get_child->exitcode == true); /* Make Sure the dead child has already been exited */
+			array_remove(proc->p_children, i -1);
+			proc_destroy(get_child);
+		}
+		lock_release(lk_proc);
+
+	}
+
+	kfree(proc->p_name);
+	array_cleanup(proc->p_children);
+	pid_table[proc->pid] = false; // Set back to unoccupied
+	V(proc_count_mutex);
+
+	kfree(proc);
+	#endif
 
 
 #ifndef UW  // in the UW version, space destruction occurs in sys_exit, not here
@@ -193,6 +271,13 @@ proc_destroy(struct proc *proc)
 void
 proc_bootstrap(void)
 {
+#if OPT_A2
+	lk_proc = lock_create("Process_Lock_All");
+	for(int i = 0; i < MAXP; i++){
+		pid_table[i] = 0;
+	}
+#endif
+
   kproc = proc_create("[kernel]");
   if (kproc == NULL) {
     panic("proc_create for kproc failed\n");

@@ -51,6 +51,7 @@ struct semaphore;
  */
 #if OPT_A2
 	struct lock* lk_proc;
+	struct array* all_process;
 #endif
 
 struct proc {
@@ -69,16 +70,20 @@ struct proc {
   /* this is a quick-and-dirty way to get console writes working */
   /* you will probably need to change this when implementing file-related
      system calls, since each process will need to keep track of all files
-     it has opened, not just the console. */
+     it has opened, not just the console. s*/
   struct vnode *console;                /* a vnode for the console device */
 #endif
 	/* add more material here as needed */
 	#if OPT_A2
 		volatile pid_t pid;
 		volatile pid_t parent_pid;
+		struct array* p_children; /* All children process */
+		struct proc* parent_p;
 		struct cv * proc_cv;
 		int exitcode;
 		bool exit_status;
+		bool alive;
+		bool parent_alive;
 
 	#endif
 };
@@ -111,6 +116,10 @@ struct addrspace *curproc_getas(void);
 
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *curproc_setas(struct addrspace *);
+
+#if OPT_A2
+pid_t pid_gen();
+#endif
 
 
 #endif /* _PROC_H_ */
