@@ -75,7 +75,7 @@ int MAXP = 64;
 bool pid_table[64];
 
 /* Gen the next available PID*/
-pid_t pid_gen(){
+pid_t pid_gen(void){
 	int retval = -1;
 	lock_acquire(lk_proc);
 	for(int i = 2; i <= MAXP; i++){

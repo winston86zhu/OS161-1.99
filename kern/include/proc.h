@@ -118,7 +118,7 @@ struct addrspace *curproc_getas(void);
 struct addrspace *curproc_setas(struct addrspace *);
 
 #if OPT_A2
-pid_t pid_gen();
+pid_t pid_gen(void);
 #endif
 
 

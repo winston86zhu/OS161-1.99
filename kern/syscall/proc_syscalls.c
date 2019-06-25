@@ -28,10 +28,6 @@ void sys__exit(int exitcode) {
   #if OPT_A2
   KASSERT(lk_proc);
   KASSERT( curthread != NULL );
-  lock_acquire(lk_proc);
-  if(array_num(curproc->p_children) == 0){
-
-  }
 
 
 
