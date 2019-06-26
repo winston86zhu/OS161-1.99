@@ -71,7 +71,7 @@ struct proc {
   /* you will probably need to change this when implementing file-related
      system calls, since each process will need to keep track of all files
      it has opened, not just the console. s*/
-  struct vnode *console;                /* a vnode for the console device */
+  struct vnode *console;                /* a vnode for the console device s*/
 #endif
 	/* add more material here as needed */
 	#if OPT_A2

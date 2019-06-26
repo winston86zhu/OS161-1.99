@@ -77,15 +77,17 @@ bool pid_table[64];
 /* Gen the next available PID*/
 pid_t pid_gen(void){
 	int retval = -1;
-	lock_acquire(lk_proc);
+	
 	for(int i = 2; i <= MAXP; i++){
 		if(pid_table[i] == 0){
+			//lock_acquire(lk_proc);
 			pid_table[i] = 1;
-			retval = 1;
-			break;
+			//lock_release(lk_proc);
+			retval = i;
+			return retval;
 		}
 	}
-	lock_release(lk_proc);
+	//lock_release(lk_proc);
 	return retval;
 }
 
@@ -93,14 +95,14 @@ pid_t pid_gen(void){
 
 
 /*
- * Create a proc structure.
+ * Create a proc structure.s
  */
 static
 struct proc *
 proc_create(const char *name)
 {
 	struct proc *proc;
-
+	
 	proc = kmalloc(sizeof(*proc));
 	if (proc == NULL) {
 		return NULL;
@@ -125,27 +127,35 @@ proc_create(const char *name)
 #endif // UW
 
 #ifdef OPT_A2
+	
+	//lock_acquire(lk_proc);
 	proc->pid = pid_gen();
+	DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",proc->pid);
+	//kprintf("%d\n",proc->pid);
 	proc->parent_p = NULL;
 	proc->parent_pid = -1;
-	proc->exitcode = false;
+	proc->exitcode = 0;
 
 	proc->alive = true;
 	proc->parent_alive = false;
+	proc->exit_status = false;
 
 	proc->proc_cv = cv_create("fork_cv");
+
 	/*copy from cv create A1*/
 	if(proc->proc_cv == NULL){
+		kfree(proc->p_name);
 		kfree(proc);
 		return NULL;
 	}
 
 	proc->p_children = array_create();
-	if(proc->p_children == NULL){
+	/*if(proc->p_children == NULL){
 		kfree(proc);
 		return NULL;
-	}
+	}*/
 	array_init(proc->p_children);
+	//lock_release(lk_proc);
 
 
 #endif
@@ -355,6 +365,8 @@ proc_create_runprogram(const char *name)
 	proc_count++;
 	V(proc_count_mutex);
 #endif // UW
+
+
 
 	return proc;
 }

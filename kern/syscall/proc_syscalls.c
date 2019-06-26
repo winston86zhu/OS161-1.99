@@ -23,6 +23,7 @@
 //(What "interested" means is intentionally left vague; you should design this.)
 
 void sys__exit(int exitcode) {
+  kprintf("ssss");
 
   struct addrspace *as;
   struct proc *p = curproc;
@@ -48,8 +49,8 @@ void sys__exit(int exitcode) {
       
   }
 
-  if(p->parent_p == NULL || p->parent_alive == false){
-    proc_destroy(p); // parent already dead
+  if(p->parent_p == NULL){
+    proc_destroy(p); // parent already deadss
   } else {
     lock_acquire(lk_proc);
     p->exit_status = true;
@@ -101,7 +102,7 @@ void sys__exit(int exitcode) {
 
 int sys_fork(struct trapframe *trp, pid_t * ret){
   KASSERT(curproc != NULL);
-
+  kprintf("ssss");
   struct proc* new_proc = proc_create_runprogram(curproc->p_name);
   struct addrspace * new_as;
 
