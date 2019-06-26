@@ -73,20 +73,22 @@ struct semaphore *no_proc_sem;
 #if OPT_A2
 int MAXP = 64;
 bool pid_table[64];
+static volatile unsigned int counter;
 
 /* Gen the next available PID*/
-pid_t pid_gen(void){
+int pid_gen(void){
 	int retval = -1;
-	
+	//lock_acquire(lk_proc);
 	for(int i = 2; i <= MAXP; i++){
 		if(pid_table[i] == 0){
-			//lock_acquire(lk_proc);
+			
 			pid_table[i] = 1;
 			//lock_release(lk_proc);
 			retval = i;
 			return retval;
 		}
 	}
+	//lock_release(lk_proc);
 	//lock_release(lk_proc);
 	return retval;
 }
@@ -129,7 +131,8 @@ proc_create(const char *name)
 #ifdef OPT_A2
 	
 	//lock_acquire(lk_proc);
-	proc->pid = pid_gen();
+
+	//lock_release(lk_proc);
 	
 	//kprintf("%d\n",proc->pid);
 	proc->parent_p = NULL;
@@ -194,37 +197,6 @@ proc_destroy(struct proc *proc)
 		proc->p_cwd = NULL;
 	}
 
-	#if OPT_A2
-	P(proc_count_mutex);
-
-	cv_destroy(proc->proc_cv);
-	for(int i = array_num(proc->p_children); i > 0; i--){
-		lock_acquire(lk_proc);
-		struct proc *get_child = array_get(proc->p_children, i - 1);
-		KASSERT(get_child != NULL);
-		if(get_child->alive == true){
-			get_child->parent_p = NULL;
-			get_child->parent_pid = -1;
-			get_child->alive = false;
-			array_remove(proc->p_children, i -1);
-
-		} else if (get_child->alive == false){
-			KASSERT(get_child->exitcode == true); /* Make Sure the dead child has already been exited */
-			array_remove(proc->p_children, i -1);
-			proc_destroy(get_child);
-		}
-		lock_release(lk_proc);
-
-	}
-
-	kfree(proc->p_name);
-	array_cleanup(proc->p_children);
-	pid_table[proc->pid] = false; // Set back to unoccupied
-	V(proc_count_mutex);
-
-	kfree(proc);
-	#endif
-
 
 #ifndef UW  // in the UW version, space destruction occurs in sys_exit, not here
 	if (proc->p_addrspace) {
@@ -255,8 +227,47 @@ proc_destroy(struct proc *proc)
 	threadarray_cleanup(&proc->p_threads);
 	spinlock_cleanup(&proc->p_lock);
 
+
+#if OPT_A2
+	//P(proc_count_mutex);
+	
+	
+	for(int i = array_num(proc->p_children); i > 0; i--){
+		lock_acquire(lk_proc);
+		kprintf("hapy1");
+		struct proc *get_child = array_get(proc->p_children, i - 1);
+		kprintf("hapy2");
+		KASSERT(get_child != NULL);
+		if(get_child->alive == true){
+			get_child->parent_p = NULL;
+			get_child->parent_pid = -1;
+			get_child->parent_alive = false;
+			array_remove(proc->p_children, i - 1);
+
+		} else if (get_child->alive == false){
+			//KASSERT(get_child->exit_status == true); /* Make Sure the dead child has already been exited */
+			array_remove(proc->p_children, i -1);
+			//get_child->alive = false;
+			proc_destroy(get_child);
+		}
+		lock_release(lk_proc);
+
+	}
+	kprintf("hapy7");
+	cv_destroy(proc->proc_cv);
+	array_cleanup(proc->p_children);
+	//pid_table[proc->pid] = false; // Set back to unoccupied
+	//V(proc_count_mutex);
+	//lock_release(lk_proc);
+	kprintf("hapy8");
+/*Check*/
+	array_destroy(proc->p_children);
+	kprintf("hapy9");
+
 	kfree(proc->p_name);
 	kfree(proc);
+	kprintf("hapy10");
+#endif
 
 #ifdef UW
 	/* decrement the process count */
@@ -284,9 +295,10 @@ proc_bootstrap(void)
 {
 #if OPT_A2
 	lk_proc = lock_create("Process_Lock_All");
-	for(int i = 0; i < MAXP; i++){
+	counter = 2;
+	/*for(int i = 0; i < MAXP; i++){
 		pid_table[i] = 0;
-	}
+	}*/
 #endif
 
   kproc = proc_create("[kernel]");
@@ -364,6 +376,11 @@ proc_create_runprogram(const char *name)
            are created using a call to proc_create_runprogram  */
 	P(proc_count_mutex); 
 	proc_count++;
+#if OPT_A2
+	proc->pid = counter;
+	counter++;
+#endif
+
 	V(proc_count_mutex);
 #endif // UW
 

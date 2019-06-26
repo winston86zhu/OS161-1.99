@@ -60,7 +60,7 @@ void sys__exit(int exitcode) {
     struct proc *child_p = array_get(curproc->p_children,i);
     if(child_p != NULL){
       if(child_p->exit_status == false){
-        child_p->exit_status = true;
+        child_p->parent_alive = false;
       } else {/*Orphan */
         proc_destroy(child_p);
       }
@@ -74,7 +74,7 @@ void sys__exit(int exitcode) {
     p->exitcode = _MKWAIT_EXIT(exitcode);
     cv_signal(p->proc_cv,lk_proc);
   }
-
+  lock_release(lk_proc);
   #else
   proc_destroy(p);
   (void)exitcode;
@@ -90,36 +90,41 @@ void sys__exit(int exitcode) {
 
 int sys_fork(struct trapframe *trp, pid_t * ret){
   KASSERT(curproc != NULL);
-   kprintf("haha");
   struct proc* new_proc = proc_create_runprogram(curproc->p_name);
+  kprintf("haha");
   struct addrspace * new_as;
 
   /*if(new_proc->pid == -1){
     proc_destroy(new_proc);
     return -1;
+  }*/  
+
+/*
+  if(new_proc->p_addrspace == NULL){
+    //DEBUG(DB_SYSCALL, "can not create as");
+    proc_destroy(new_proc);
+    kprintf("haha-core");
+    return ENOMEM;
   }*/
 
   lock_acquire(lk_proc);
-  int succeed = as_copy(curproc_getas(), &new_as);
+  int succeed = as_copy(curproc->p_addrspace, &new_as);
   lock_release(lk_proc);
 
-  if(new_proc->p_addrspace == NULL){
-    DEBUG(DB_SYSCALL, "can not create as");
-    proc_destroy(new_proc);
-    return ENOMEM;
-  }
-
   if(succeed){
+    kprintf("haha-core");
     proc_destroy(new_proc);
-
+    kprintf("haha3");
     return succeed;
   }
-
+  
   new_proc->p_addrspace = new_as;
 
+  kprintf("haha3.5");
   lock_acquire(lk_proc);
   /*Children trapframe => Copy from parent*/
   struct trapframe *new_trp = kmalloc(sizeof(struct trapframe));
+   kprintf("haha4");
   memcpy(new_trp, trp, sizeof(struct trapframe));
   new_proc->parent_p = curproc;
   new_proc->parent_pid = curproc->pid;
@@ -136,7 +141,7 @@ int sys_fork(struct trapframe *trp, pid_t * ret){
   }
 
   *ret = new_proc->pid;
-  kprintf("ssdsadadsa");
+  //kprintf("ssdsadadsa");
   return 0;
 
 }
