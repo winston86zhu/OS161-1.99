@@ -23,45 +23,33 @@
 //(What "interested" means is intentionally left vague; you should design this.)
 
 void sys__exit(int exitcode) {
-  kprintf("ssss");
-
   struct addrspace *as;
   struct proc *p = curproc;
   /* for now, just include this to keep the compiler from complaining about
      an unused variable */
   #if OPT_A2
   KASSERT(lk_proc);
-  KASSERT( p != NULL );
-  lock_acquire(lk_proc);
-  cv_broadcast(p->proc_cv, lk_proc);
-  lock_release(lk_proc);
+  KASSERT( p != NULL);
 
-  for(unsigned int i=0; i < array_num(p->p_children); i++){
-    struct proc *get_p = array_get(p->p_children,i);
-    if(get_p != NULL){
-      if(get_p->exit_status == false){
-        get_p->parent_alive = false;
-      } else {
-        proc_destroy(get_p);
+  lock_acquire(lk_proc);
+  for(unsigned int i=0; i < array_num(curproc->p_children); i++){
+    struct proc *child_p = array_get(curproc->p_children,i);
+    if(child_p != NULL){
+      if(child_p->exit_status == false){
+        child_p->exit_status = true;
+      } else {/*Orphan */
+        proc_destroy(child_p);
       }
     }
-
-      
   }
 
-  if(p->parent_p == NULL){
-    proc_destroy(p); // parent already deadss
+  if(p->parent_alive == false){
+    proc_destroy(p);
   } else {
-    lock_acquire(lk_proc);
     p->exit_status = true;
     p->exitcode = _MKWAIT_EXIT(exitcode);
-    /*for(unsigned int i=0; i < array_num(p->parent_p->p_children); i++){
-
-    }*/
-    lock_release(lk_proc);
-
+    cv_signal(p->proc_cv,lk_proc);
   }
-
 
 
 
@@ -102,7 +90,6 @@ void sys__exit(int exitcode) {
 
 int sys_fork(struct trapframe *trp, pid_t * ret){
   KASSERT(curproc != NULL);
-  kprintf("ssss");
   struct proc* new_proc = proc_create_runprogram(curproc->p_name);
   struct addrspace * new_as;
 
