@@ -27,7 +27,31 @@ void sys__exit(int exitcode) {
   struct proc *p = curproc;
   /* for now, just include this to keep the compiler from complaining about
      an unused variable */
-  #if OPT_A2
+ 
+
+
+ // DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",exitcode);
+
+  KASSERT(curproc->p_addrspace != NULL);
+  as_deactivate();
+  /*
+   * clear p_addrspace before calling as_destroy. Otherwise if
+   * as_destroy sleeps (which is quite possible) when we
+   * come back we'll be calling as_activate on a
+   * half-destroyed address space. This tends to be
+   * messily fatal.
+   */
+  as = curproc_setas(NULL);
+  as_destroy(as);
+
+  /* detach this thread from its process */
+  /* note: curproc cannot be used after this call */
+  proc_remthread(curthread);
+
+  /* if this is the last user process in the system, proc_destroy()
+     will wake up the kernel menu thread */
+
+   #if OPT_A2
   KASSERT(lk_proc);
   KASSERT( p != NULL);
 
@@ -51,35 +75,11 @@ void sys__exit(int exitcode) {
     cv_signal(p->proc_cv,lk_proc);
   }
 
-
-
   #else
+  proc_destroy(p);
   (void)exitcode;
   #endif
 
-
-
-  DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",exitcode);
-
-  KASSERT(curproc->p_addrspace != NULL);
-  as_deactivate();
-  /*
-   * clear p_addrspace before calling as_destroy. Otherwise if
-   * as_destroy sleeps (which is quite possible) when we
-   * come back we'll be calling as_activate on a
-   * half-destroyed address space. This tends to be
-   * messily fatal.
-   */
-  as = curproc_setas(NULL);
-  as_destroy(as);
-
-  /* detach this thread from its process */
-  /* note: curproc cannot be used after this call */
-  proc_remthread(curthread);
-
-  /* if this is the last user process in the system, proc_destroy()
-     will wake up the kernel menu thread */
-  proc_destroy(p);
   
   thread_exit();
   /* thread_exit() does not return, so we should never get here */
@@ -90,21 +90,29 @@ void sys__exit(int exitcode) {
 
 int sys_fork(struct trapframe *trp, pid_t * ret){
   KASSERT(curproc != NULL);
+   kprintf("haha");
   struct proc* new_proc = proc_create_runprogram(curproc->p_name);
   struct addrspace * new_as;
 
-  if(new_proc->pid == -1){
+  /*if(new_proc->pid == -1){
     proc_destroy(new_proc);
     return -1;
-  }
+  }*/
 
   lock_acquire(lk_proc);
   int succeed = as_copy(curproc_getas(), &new_as);
   lock_release(lk_proc);
 
+  if(new_proc->p_addrspace == NULL){
+    DEBUG(DB_SYSCALL, "can not create as");
+    proc_destroy(new_proc);
+    return ENOMEM;
+  }
+
   if(succeed){
     proc_destroy(new_proc);
-    return -1;
+
+    return succeed;
   }
 
   new_proc->p_addrspace = new_as;
@@ -124,11 +132,12 @@ int sys_fork(struct trapframe *trp, pid_t * ret){
   if(succeed){
     kfree(new_as);
     proc_destroy(new_proc);
-    return -1;//ENOMEM
+    return succeed;//ENOMEM
   }
 
   *ret = new_proc->pid;
-  return true;
+  kprintf("ssdsadadsa");
+  return 0;
 
 }
 

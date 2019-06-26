@@ -130,7 +130,7 @@ proc_create(const char *name)
 	
 	//lock_acquire(lk_proc);
 	proc->pid = pid_gen();
-	DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",proc->pid);
+	
 	//kprintf("%d\n",proc->pid);
 	proc->parent_p = NULL;
 	proc->parent_pid = -1;
@@ -141,6 +141,7 @@ proc_create(const char *name)
 	proc->exit_status = false;
 
 	proc->proc_cv = cv_create("fork_cv");
+	DEBUG(DB_SYSCALL,"Syscall - proc.c: _exit(%d)\n",proc->pid);
 
 	/*copy from cv create A1*/
 	if(proc->proc_cv == NULL){
