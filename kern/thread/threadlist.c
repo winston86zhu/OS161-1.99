@@ -83,6 +83,7 @@ threadlist_cleanup(struct threadlist *tl)
 	DEBUGASSERT(tl->tl_tail.tln_self == NULL);
 
 	KASSERT(threadlist_isempty(tl));
+	
 	KASSERT(tl->tl_count == 0);
 
 	/* nothing (else) to do */
@@ -92,6 +93,7 @@ bool
 threadlist_isempty(struct threadlist *tl)
 {
 	DEBUGASSERT(tl != NULL);
+	//kprintf("The number of thread is %d\n",tl->tl_count);
 
 	return (tl->tl_count == 0);
 }

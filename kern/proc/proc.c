@@ -204,8 +204,7 @@ proc_destroy(struct proc *proc)
 	}
 #endif // UW
 
-	threadarray_cleanup(&proc->p_threads);
-	spinlock_cleanup(&proc->p_lock);
+	
 
 
 #if OPT_A2
@@ -214,11 +213,24 @@ proc_destroy(struct proc *proc)
 	lock_acquire(proc->proc_lock);
 	proc->exit_status = true;
 	lock_release(proc->proc_lock);
+	//kprintf("AAA");
 	lock_destroy(proc->proc_lock);
-	array_set(all_process, proc_search(all_process, proc->pid), NULL);
+	//kprintf("BBB");
+	//array_set(all_process, proc_search(all_process, proc->pid), NULL);
+	array_remove(all_process, proc_search(all_process, proc->pid));
+	//kprintf("CCC");
 
 	
 #endif
+
+
+threadarray_cleanup(&proc->p_threads);
+spinlock_cleanup(&proc->p_lock);
+//kprintf("DDD");
+
+kfree(proc->p_name);
+kfree(proc);
+
 
 #ifdef UW
 	/* decrement the process count */
@@ -232,10 +244,12 @@ proc_destroy(struct proc *proc)
 	if (proc_count == 0) {
 	  V(no_proc_sem);
 	}
+
+
 	V(proc_count_mutex);
+
 #endif // UW
 	
-
 }
 
 /*
@@ -248,7 +262,7 @@ proc_bootstrap(void)
 	lk_proc = lock_create("Process_Lock_All");
 	counter = 2;
 	all_process = array_create();
-	array_init(all_process);
+	//array_init(all_process);
 	/*for(int i = 0; i < MAXP; i++){
 		pid_table[i] = 0;
 	}*/

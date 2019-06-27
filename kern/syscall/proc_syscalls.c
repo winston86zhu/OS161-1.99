@@ -57,10 +57,10 @@ void sys__exit(int exitcode) {
   KASSERT(lk_proc);
   KASSERT( p != NULL);
 
-  lock_acquire(p->proc_lock);
+  //lock_acquire(p->proc_lock);
   
   // If parent is waiting on this, then wake it up
-  lock_release(p->proc_lock);
+  //lock_release(p->proc_lock);
  
   lock_acquire(lk_proc);
   for(int i = array_num(all_process) - 1; i > 0; i--){
@@ -76,14 +76,14 @@ void sys__exit(int exitcode) {
   	}
   }
   
-  
-  
   if(p->parent_alive == false){
   	//lock_acquire(lk_proc);
   	p->exitcode = _MKWAIT_EXIT(exitcode);
   	
   	p->exit_status = true;
-  	cv_signal(p->proc_cv, lk_proc);
+  	lock_acquire(p->proc_lock);
+  	cv_broadcast(p->proc_cv, p->proc_lock);
+  	lock_release(p->proc_lock);
   	//lock_release(lk_proc);
   } else {
   	proc_destroy(p);
@@ -95,7 +95,7 @@ void sys__exit(int exitcode) {
   proc_destroy(p);
   
   #endif
-
+  //kprintf("EEE");
   
   thread_exit();
   /* thread_exit() does not return, so we should never get here */
@@ -207,12 +207,13 @@ sys_waitpid(pid_t pid,
   	*retval = -1;
     return ECHILD;
   }
-  lock_acquire(lk_proc);
-  while(!my_child->exit_status){
-    cv_wait(my_child->proc_cv, lk_proc);
+  lock_acquire(my_child->proc_lock);
+  if(!my_child->exit_status){
+    cv_wait(my_child->proc_cv, my_child->proc_lock);
   }
+  lock_release(my_child->proc_lock);
   exitstatus = my_child->exitcode;
-  lock_release(lk_proc);
+  //kprintf("GGG");
   //kprintf("KKKKKK");
 #else
   /* for now, just pretend the exitstatus is 0 */
