@@ -81,6 +81,7 @@ void sys__exit(int exitcode) {
   	p->exitcode = _MKWAIT_EXIT(exitcode);
   	
   	p->exit_status = true;
+  	//
   	lock_acquire(p->proc_lock);
   	cv_broadcast(p->proc_cv, p->proc_lock);
   	lock_release(p->proc_lock);
@@ -95,7 +96,6 @@ void sys__exit(int exitcode) {
   proc_destroy(p);
   
   #endif
-  //kprintf("EEE");
   
   thread_exit();
   /* thread_exit() does not return, so we should never get here */
@@ -212,9 +212,9 @@ sys_waitpid(pid_t pid,
     cv_wait(my_child->proc_cv, my_child->proc_lock);
   }
   lock_release(my_child->proc_lock);
+  //After calling MKWAITEXIT (exitcode -> exit_status)
+  // exits_status is alive 
   exitstatus = my_child->exitcode;
-  //kprintf("GGG");
-  //kprintf("KKKKKK");
 #else
   /* for now, just pretend the exitstatus is 0 */
   exitstatus = 0;
