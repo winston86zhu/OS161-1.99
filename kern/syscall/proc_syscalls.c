@@ -32,7 +32,7 @@ void sys__exit(int exitcode) {
  
 
 
- // DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",exitcode);
+  DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",exitcode);
 
   KASSERT(curproc->p_addrspace != NULL);
   as_deactivate();
@@ -75,18 +75,20 @@ void sys__exit(int exitcode) {
   		}
   	}
   }
-  lock_release(lk_proc);
+  
   
   
   if(p->parent_alive == false){
-  	lock_acquire(lk_proc);
+  	//lock_acquire(lk_proc);
   	p->exitcode = _MKWAIT_EXIT(exitcode);
-  	cv_signal(p->proc_cv, lk_proc);
+  	
   	p->exit_status = true;
-  	lock_release(lk_proc);
+  	cv_signal(p->proc_cv, lk_proc);
+  	//lock_release(lk_proc);
   } else {
   	proc_destroy(p);
   }
+  lock_release(lk_proc);
   
   
   #else
@@ -122,24 +124,32 @@ int sys_fork(struct trapframe *trp, pid_t * ret){
   lock_acquire(lk_proc);
   /*Children trapframe => Copy from parent*/
   struct trapframe *new_trp = kmalloc(sizeof(struct trapframe));
-  memcpy(new_trp, trp, sizeof(struct trapframe));
+
+  if (!new_trp) {
+      proc_destroy(new_proc);
+      return ENOMEM;
+   }
+   *new_trp = *trp;
+  //memcpy(new_trp, trp, sizeof(struct trapframe));
   //kprintf("SSSS");
   new_proc->parent_p = curproc;
   new_proc->parent_pid = curproc->pid;
 
-  new_proc->alive = true;
+  //new_proc->alive = true;
   //new_proc->parent_alive = true;
-  lock_release(lk_proc);
+  
 
-  succeed = thread_fork(curthread->t_name, new_proc,(void *) enter_forked_process, new_trp, 0);
+  succeed = thread_fork(curthread->t_name, new_proc,(void *) enter_forked_process, 
+  	(struct trapframe *)new_trp, 0);
 
   if(succeed){
     kfree(new_as);
     proc_destroy(new_proc);
-    return succeed;//ENOMEM
+    return EMPROC;//ENOMEM
   }
 
   *ret = new_proc->pid;
+  lock_release(lk_proc);
   return 0;
 
 }
@@ -193,8 +203,12 @@ sys_waitpid(pid_t pid,
   /*Only a parent can call waitpid on its children*/
   
   struct proc * my_child = array_get(all_process, proc_search(all_process, pid));
+  if(my_child == NULL){
+  	*retval = -1;
+    return ECHILD;
+  }
   lock_acquire(lk_proc);
-  if(my_child->exit_status == false){
+  while(!my_child->exit_status){
     cv_wait(my_child->proc_cv, lk_proc);
   }
   exitstatus = my_child->exitcode;

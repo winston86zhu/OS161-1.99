@@ -135,7 +135,7 @@ proc_create(const char *name)
 	//kprintf("%d\n",proc->pid);
 	proc->parent_p = NULL;
 	proc->parent_pid = -1;
-	proc->exitcode = 0;
+	//proc->exitcode = 0;
 
 	proc->alive = true;
 	//proc->parent_alive = false;
