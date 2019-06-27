@@ -25,6 +25,8 @@
 void sys__exit(int exitcode) {
   struct addrspace *as;
   struct proc *p = curproc;
+  (void) p;
+  (void) exitcode;
   /* for now, just include this to keep the compiler from complaining about
      an unused variable */
  
@@ -51,33 +53,45 @@ void sys__exit(int exitcode) {
   /* if this is the last user process in the system, proc_destroy()
      will wake up the kernel menu thread */
 
-   #if OPT_A2
+#if OPT_A2
   KASSERT(lk_proc);
   KASSERT( p != NULL);
 
+  lock_acquire(p->proc_lock);
+  
+  // If parent is waiting on this, then wake it up
+  lock_release(p->proc_lock);
+ 
   lock_acquire(lk_proc);
-  for(unsigned int i=0; i < array_num(curproc->p_children); i++){
-    struct proc *child_p = array_get(curproc->p_children,i);
-    if(child_p != NULL){
-      if(child_p->exit_status == false){
-        child_p->parent_alive = false;
-      } else {/*Orphan */
-        proc_destroy(child_p);
-      }
-    }
-  }
-
-  if(p->parent_alive == false){
-    proc_destroy(p);
-  } else {
-    p->exit_status = true;
-    p->exitcode = _MKWAIT_EXIT(exitcode);
-    cv_signal(p->proc_cv,lk_proc);
+  for(int i = array_num(all_process) - 1; i > 0; i--){
+  	struct proc * get_proc = array_get(all_process, i);
+  	if(get_proc->parent_pid == p->pid){//I am dying, telling my alive children& deadchildren
+  		if(get_proc->exit_status == true){
+  			//Died Chidlren
+  			proc_destroy(get_proc);
+  		} else if (get_proc->exit_status == false){
+  			//Orphan 
+  			get_proc->parent_alive = true;
+  		}
+  	}
   }
   lock_release(lk_proc);
+  
+  
+  if(p->parent_alive == false){
+  	lock_acquire(lk_proc);
+  	p->exitcode = _MKWAIT_EXIT(exitcode);
+  	cv_signal(p->proc_cv, lk_proc);
+  	p->exit_status = true;
+  	lock_release(lk_proc);
+  } else {
+  	proc_destroy(p);
+  }
+  
+  
   #else
   proc_destroy(p);
-  (void)exitcode;
+  
   #endif
 
   
@@ -91,49 +105,34 @@ void sys__exit(int exitcode) {
 int sys_fork(struct trapframe *trp, pid_t * ret){
   KASSERT(curproc != NULL);
   struct proc* new_proc = proc_create_runprogram(curproc->p_name);
-  kprintf("haha");
   struct addrspace * new_as;
 
-  /*if(new_proc->pid == -1){
-    proc_destroy(new_proc);
-    return -1;
-  }*/  
-
-/*
-  if(new_proc->p_addrspace == NULL){
-    //DEBUG(DB_SYSCALL, "can not create as");
-    proc_destroy(new_proc);
-    kprintf("haha-core");
-    return ENOMEM;
-  }*/
 
   lock_acquire(lk_proc);
   int succeed = as_copy(curproc->p_addrspace, &new_as);
   lock_release(lk_proc);
 
   if(succeed){
-    kprintf("haha-core");
     proc_destroy(new_proc);
-    kprintf("haha3");
     return succeed;
   }
   
   new_proc->p_addrspace = new_as;
 
-  kprintf("haha3.5");
   lock_acquire(lk_proc);
   /*Children trapframe => Copy from parent*/
   struct trapframe *new_trp = kmalloc(sizeof(struct trapframe));
-   kprintf("haha4");
   memcpy(new_trp, trp, sizeof(struct trapframe));
+  //kprintf("SSSS");
   new_proc->parent_p = curproc;
   new_proc->parent_pid = curproc->pid;
-  array_add(curproc->p_children,new_proc,NULL);
+
   new_proc->alive = true;
-  new_proc->parent_alive = true;
+  //new_proc->parent_alive = true;
   lock_release(lk_proc);
 
   succeed = thread_fork(curthread->t_name, new_proc,(void *) enter_forked_process, new_trp, 0);
+
   if(succeed){
     kfree(new_as);
     proc_destroy(new_proc);
@@ -141,7 +140,6 @@ int sys_fork(struct trapframe *trp, pid_t * ret){
   }
 
   *ret = new_proc->pid;
-  //kprintf("ssdsadadsa");
   return 0;
 
 }
@@ -158,7 +156,7 @@ sys_getpid(pid_t *retval)
   /* for now, this is just a stub that always returns a PID of 1 */
   /* you need to fix this to make it work properly */
 #if OPT_A2
-    KASSERT(curproc != NULL);
+    KASSERT(curproc);
     *retval = curproc->pid;
 #else
   *retval = 1;
@@ -193,27 +191,15 @@ sys_waitpid(pid_t pid,
 
 #if OPT_A2
   /*Only a parent can call waitpid on its children*/
-  int ret_val = -1;
-  for(unsigned int i=0; i < array_num(curproc->p_children); i++){
-    struct proc * p_iter = array_get(curproc->p_children, i);
-    if(p_iter->pid == pid){
-      ret_val = i;
-      break;
-    }   
-  }
-  if(ret_val == -1){
-    *retval = -1;
-    return ECHILD; //?
-  }
-  struct proc *proc_child = array_get(curproc->p_children,ret_val);
+  
+  struct proc * my_child = array_get(all_process, proc_search(all_process, pid));
   lock_acquire(lk_proc);
-  while(proc_child->exit_status == false){
-    cv_wait(proc_child->proc_cv, lk_proc);
+  if(my_child->exit_status == false){
+    cv_wait(my_child->proc_cv, lk_proc);
   }
-  exitstatus = proc_child->exitcode;
-
+  exitstatus = my_child->exitcode;
   lock_release(lk_proc);
-
+  //kprintf("KKKKKK");
 #else
   /* for now, just pretend the exitstatus is 0 */
   exitstatus = 0;

@@ -35,6 +35,7 @@
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
+#include <addrspace.h>
 
 
 /*
@@ -132,6 +133,8 @@ syscall(struct trapframe *tf)
 	  err = sys_fork(tf, (pid_t *)&retval);
 	  break;
 #endif // UW
+	
+
 
 	    /* Add stuff here */
  
@@ -181,5 +184,15 @@ syscall(struct trapframe *tf)
 void
 enter_forked_process(struct trapframe *tf)
 {
-	(void)tf;
+	#if OPT_A2
+	struct trapframe copy_trap = *tf;
+	kfree(tf);
+	copy_trap.tf_epc += 4;
+	copy_trap.tf_v0 = 0;
+	copy_trap.tf_a3 = 0;
+	mips_usermode(&copy_trap);
+	as_activate();
+	#else
+		(void)tf;
+	#endif
 }

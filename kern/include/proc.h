@@ -50,6 +50,7 @@ struct semaphore;
  * Process structure.
  */
 #if OPT_A2
+	volatile int counter;
 	struct lock* lk_proc;
 	struct array* all_process;
 #endif
@@ -77,9 +78,10 @@ struct proc {
 	#if OPT_A2
 		volatile pid_t pid;
 		volatile pid_t parent_pid;
-		struct array* p_children; /* All children process */
+		//struct array* p_children; /* All children processs */
 		struct proc* parent_p;
 		struct cv * proc_cv;
+		struct lock * proc_lock;
 		int exitcode;
 		bool exit_status;
 		bool alive;
@@ -119,6 +121,8 @@ struct addrspace *curproc_setas(struct addrspace *);
 
 #if OPT_A2
 int pid_gen(void);
+int proc_search(struct array *all_process, pid_t id);
+
 #endif
 
 
