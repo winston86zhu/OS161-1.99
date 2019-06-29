@@ -40,6 +40,7 @@
 #include <thread.h> /* required for struct threadarray */
 #include "opt-A2.h"
 #include <synch.h>
+#include <array.h>
 
 struct addrspace;
 struct vnode;
@@ -79,7 +80,6 @@ struct proc {
 	#if OPT_A2
 		volatile pid_t pid;
 		volatile pid_t parent_pid;
-		//struct array* p_children; /* All children processs */
 		struct proc* parent_p;
 		struct cv * proc_cv;
 		struct lock * proc_lock;

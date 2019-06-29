@@ -130,7 +130,7 @@ proc_create(const char *name)
 
 #ifdef OPT_A2
 	
-	//lock_acquire(lk_proc)s;
+	//lock_acquire(lk_proc);
 
 	//kprintf("%d\n",proc->pid);
 	proc->parent_p = NULL;
@@ -139,6 +139,7 @@ proc_create(const char *name)
 
 	proc->alive = true;
 	//proc->parent_alive = false;
+	//lock_release(lk_proc);
 	//lock_release(lk_proc);
 	
 
@@ -209,16 +210,16 @@ proc_destroy(struct proc *proc)
 
 #if OPT_A2
 
-	cv_destroy(proc->proc_cv);
+	
 	lock_acquire(proc->proc_lock);
 	proc->exit_status = true;
+	cv_destroy(proc->proc_cv);
 	lock_release(proc->proc_lock);
 	//kprintf("AAA");
 	lock_destroy(proc->proc_lock);
 	//kprintf("BBB");
 	//array_set(all_process, proc_search(all_process, proc->pid), NULL);
 	array_remove(all_process, proc_search(all_process, proc->pid));
-	//kprintf("CCC");
 
 	
 #endif
@@ -226,7 +227,6 @@ proc_destroy(struct proc *proc)
 
 threadarray_cleanup(&proc->p_threads);
 spinlock_cleanup(&proc->p_lock);
-//kprintf("DDD");
 
 kfree(proc->p_name);
 kfree(proc);
@@ -344,11 +344,11 @@ proc_create_runprogram(const char *name)
 	P(proc_count_mutex); 
 	proc_count++;
 #if OPT_A2
+	proc->exit_status = false;
 	proc->proc_cv = cv_create("fork_cv");
 	proc->proc_lock = lock_create("individual_lock");
 	proc->pid = counter;
 	counter++;
-	proc->exit_status = false;
 	array_add(all_process, proc, NULL);
 #endif
 
@@ -452,11 +452,16 @@ curproc_setas(struct addrspace *newas)
 }
 
 #if OPT_A2
+/*
+ * Search Process from all process array via a given pid
+ * 
+ */
 int proc_search(struct array * all_process, pid_t pid){
 	struct proc *ret_proc;
 	for(int i = array_num(all_process) - 1; i > 0 ; --i){
 		ret_proc = array_get(all_process, i);
-		if(ret_proc != NULL && ret_proc -> pid == pid){
+		KASSERT(ret_proc != NULL);
+		if(ret_proc -> pid == pid){
 			return(i);
 		}
 	}
