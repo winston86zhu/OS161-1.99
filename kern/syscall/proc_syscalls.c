@@ -13,6 +13,11 @@
 #include <array.h>
 #include <synch.h>
 #include <mips/trapframe.h>
+#include <vfs.h>
+#include <test.h>
+#include <kern/fcntl.h>
+
+
 
 
   /* this implementation of sys__exit does not do anything with the exit code */
@@ -121,7 +126,7 @@ int sys_fork(struct trapframe *trp, pid_t * ret){
   
   new_proc->p_addrspace = new_as;
 
-  lock_acquire(lk_proc);
+  lock_acquire(new_proc->proc_lock);
   /*Children trapframe => Copy from parent*/
   struct trapframe *new_trp = kmalloc(sizeof(struct trapframe));
 
@@ -131,11 +136,10 @@ int sys_fork(struct trapframe *trp, pid_t * ret){
    }
    *new_trp = *trp;
   //memcpy(new_trp, trp, sizeof(struct trapframe));
-  //kprintf("SSSS");
   new_proc->parent_p = curproc;
   new_proc->parent_pid = curproc->pid;
 
-  //new_proc->alive = true;
+  new_proc->alive = true;
   //new_proc->parent_alive = true;
   
 
@@ -149,7 +153,7 @@ int sys_fork(struct trapframe *trp, pid_t * ret){
   }
 
   *ret = new_proc->pid;
-  lock_release(lk_proc);
+  lock_release(new_proc->proc_lock);
   return 0;
 
 }
@@ -185,15 +189,6 @@ sys_waitpid(pid_t pid,
   int exitstatus;
   int result;
 
-  /* this is just a stub implementation that always reports an
-     exit status of 0, regardless of the actual exit status of
-     the specified process.   
-     In fact, this will return 0 even if the specified process
-     is still running, and even if it never existed in the first place.
-
-     Fix this!
-  */
-
   if (options != 0) {
     return(EINVAL);
   }
@@ -201,20 +196,22 @@ sys_waitpid(pid_t pid,
 
 #if OPT_A2
   /*Only a parent can call waitpid on its children*/
+  KASSERT(all_process);
   
   struct proc * my_child = array_get(all_process, proc_search(all_process, pid));
   if(my_child == NULL){
   	*retval = -1;
     return ECHILD;
+  } else {
+    lock_acquire(my_child->proc_lock);
+    if(!my_child->exit_status){
+      cv_wait(my_child->proc_cv, my_child->proc_lock);
+    }
+    lock_release(my_child->proc_lock);
+    //After calling MKWAITEXIT (exitcode -> exit_status)
+    // exits_status is alive 
+    exitstatus = my_child->exitcode;
   }
-  lock_acquire(my_child->proc_lock);
-  if(!my_child->exit_status){
-    cv_wait(my_child->proc_cv, my_child->proc_lock);
-  }
-  lock_release(my_child->proc_lock);
-  //After calling MKWAITEXIT (exitcode -> exit_status)
-  // exits_status is alive 
-  exitstatus = my_child->exitcode;
 #else
   /* for now, just pretend the exitstatus is 0 */
   exitstatus = 0;
@@ -225,6 +222,94 @@ sys_waitpid(pid_t pid,
   }
   *retval = pid;
   return(0);
+}
+
+#if OPT_A2
+int sys_execv(userptr_t pname, userptr_t in_args){
+
+  char * name = (char *) pname;
+  char ** args = (char **) in_args;
+  (void) args;
+	
+/*  Copu from Runprogram  */
+	struct addrspace *as;
+	struct vnode *v;
+	vaddr_t entrypoint, stackptr;
+	int result;
+
+ 
+
+
+
+  /* Open the file. */
+  result = vfs_open(name, O_RDONLY, 0, &v);
+  if (result) {
+    return result;
+  }
+
+  /* Create a new address space. */
+  as = curproc_getas();
+  as_destroy(as);
+  as = as_create();
+  if (as ==NULL) {
+    vfs_close(v);
+    return ENOMEM;
+  }
+
+  /* Switch to it and activate it. */
+  curproc_setas(as);
+  as_activate();
+
+  /* Load the executable. */
+  result = load_elf(v, &entrypoint);
+  if (result) {
+    /* p_addrspace will go away when curproc is destroyed */
+    vfs_close(v);
+    return result;
+  }
+
+  /* Done with the file now. */
+  vfs_close(v);
+
+  /* Define the user stack in the address space */
+  result = as_define_stack(as, &stackptr);
+  if (result) {
+    /* p_addrspace will go away when curproc is destroyed */
+    return result;
+  }
+
+  /* Warp to user mode. */
+  enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
+        stackptr, entrypoint);
+
+  /* enter_new_process does not return. */
+  panic("enter_new_process returned\n");
+  return EINVAL;
+	
+
+
+	/*Below is for arg passing */
+
+	//Count the number of argument and allocate space
+	// int i = 0;
+	// while(args[i] != NULL){
+	// 	i++
+	// }
+	// int counter = i + 1;
+	// //Allocate Space
+	// char ** arg_sapce = kmalloc(sizeof(char *) * (counter));
+	// if (arg_sapce == NULL) {
+	// 	return NULL;
+	// }
+	// arg_space[counter] = NULL;
+
+	
+	
 
 }
+
+
+
+#endif
+
 

@@ -44,6 +44,7 @@
 #include <vfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <copyinout.h>
 
 /*
  * Load program "progname" and start running it in usermode.
@@ -97,6 +98,22 @@ runprogram(char *progname)
 		return result;
 	}
 
+// #if OPT_A2
+
+// 	int arg_counter = 0;
+// 	vaddr_t arg_v[arg_counter + 1];
+// 	arg_v[arg_counter] = 0;
+
+// 	stackptr -= ROUNDUP(sizeof(char *) * (arg_counter + 1),8);
+// 	copyout(arg_v,  (userptr_t) stackptr, ROUNDUP(sizeof(char *) * (arg_counter + 1),8));
+
+// 	enter_new_process(0 /*argc*/, (userptr_t) stackptr /*userspace addr of argv*/,
+// 			  stackptr, entrypoint);
+// #else
+// 	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
+// 			  stackptr, entrypoint);
+// #endif
+	
 	/* Warp to user mode. */
 	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
 			  stackptr, entrypoint);
