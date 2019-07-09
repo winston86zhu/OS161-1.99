@@ -244,8 +244,8 @@ int sys_execv(userptr_t pname, userptr_t in_args){
   arg_space[i] = NULL;
   // Copy indivdiaul string from arg 
   for(unsigned int i = 0; i < counter - 1; i++){
-    arg_space[i] = kmalloc(sizeof(char) * strlen(args[i] + 1));
-    int error = copyinstr((const_userptr_t) args[i], arg_space[i], strlen(args[i] + 1), NULL);
+    arg_space[i] = kmalloc(sizeof(char) * strlen(args[i]) + 1);
+    int error = copyinstr((const_userptr_t) args[i], arg_space[i], (strlen(args[i]) + 1), NULL);
     if(error){
       for(unsigned int j = 0; j < i; j++){
         kfree(arg_space[j]);
@@ -266,10 +266,6 @@ int sys_execv(userptr_t pname, userptr_t in_args){
   // }
 
 
-
-
-
-	
 /*  Copy from Runprogram  */
 	struct addrspace *as;
 	struct vnode *v;
@@ -332,8 +328,7 @@ int sys_execv(userptr_t pname, userptr_t in_args){
   all_args[counter - 1] = 0;
 
   stackptr -= ROUNDUP((counter) * sizeof(char *), 8);
-  result = copyout(all_args, (userptr_t) stackptr, ROUNDUP((counter) * sizeof(char *), 8));
-
+  copyout(all_args, (userptr_t) stackptr, ROUNDUP((counter) * sizeof(char *), 8));
 
 
   for(unsigned int i = 0; i <= counter - 2; i++){
