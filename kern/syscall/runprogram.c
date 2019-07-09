@@ -33,6 +33,7 @@
  * that execv() needs to do more than this function does.
  */
 
+
 #include <types.h>
 #include <kern/errno.h>
 #include <kern/fcntl.h>
@@ -43,6 +44,7 @@
 #include <vm.h>
 #include <vfs.h>
 #include <syscall.h>
+#include "opt-A2.h"
 #include <test.h>
 #include <copyinout.h>
 
@@ -52,9 +54,25 @@
  *
  * Calls vfs_open on progname and thus may destroy it.
  */
+#if OPT_A2
 int
-runprogram(char *progname)
+runprogram(char *progname, unsigned long num_arg, void * arr_p)
+#else
+int runprogram(char *progname)
+#endif
 {
+	
+#if OPT_A2
+	char ** args = arr_p;
+	(void) num_arg;
+	(void) args;
+
+#else 
+	num_arg = 0;
+	arr_p = NULL;
+#endif
+
+
 	struct addrspace *as;
 	struct vnode *v;
 	vaddr_t entrypoint, stackptr;
@@ -67,7 +85,14 @@ runprogram(char *progname)
 	}
 
 	/* We should be a new process. */
+#if OPT_A2
+	as = curproc_getas();
+	if(as != NULL){
+		as_destroy(as);
+	}
+#else
 	KASSERT(curproc_getas() == NULL);
+#endif
 
 	/* Create a new address space. */
 	as = as_create();
@@ -98,26 +123,39 @@ runprogram(char *progname)
 		return result;
 	}
 
-// #if OPT_A2
+#if OPT_A2
+	//char ** all_args = kmalloc(sizeof(char *) * (num_arg + 1));
+	char * all_args[num_arg + 1];
+	if(all_args == NULL){
+		return ENOMEM;
+	}
+	all_args[num_arg] = NULL;
+	/* Copy from user stack*/ 
+	for(signed int i = num_arg - 1; i >= 0; i--){
+		stackptr -= ROUNDUP(strlen(args[i]) + 1, 8);
+		result = copyoutstr(args[i], (userptr_t)stackptr, strlen(args[i]) + 1, NULL);
+		if(result){
+			return result;
+		}
+		all_args[i] = (char *) stackptr;
+	}
+	stackptr -= ROUNDUP((num_arg + 1) * sizeof(char *), 8);
+	result = copyout(all_args, (userptr_t) stackptr, (num_arg + 1) * sizeof(char *));
+	if(result){
+		return result;
+	}
 
-// 	int arg_counter = 0;
-// 	vaddr_t arg_v[arg_counter + 1];
-// 	arg_v[arg_counter] = 0;
+	//kfree(all_args);
+	enter_new_process(num_arg /*argc*/, (userptr_t) stackptr /*userspace addr of argv*/,
+			  stackptr, entrypoint);
 
-// 	stackptr -= ROUNDUP(sizeof(char *) * (arg_counter + 1),8);
-// 	copyout(arg_v,  (userptr_t) stackptr, ROUNDUP(sizeof(char *) * (arg_counter + 1),8));
-
-// 	enter_new_process(0 /*argc*/, (userptr_t) stackptr /*userspace addr of argv*/,
-// 			  stackptr, entrypoint);
-// #else
-// 	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
-// 			  stackptr, entrypoint);
-// #endif
+	
+#else
 	
 	/* Warp to user mode. */
 	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
 			  stackptr, entrypoint);
-	
+#endif
 	/* enter_new_process does not return. */
 	panic("enter_new_process returned\n");
 	return EINVAL;

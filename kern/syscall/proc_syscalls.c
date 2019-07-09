@@ -230,16 +230,51 @@ int sys_execv(userptr_t pname, userptr_t in_args){
   char * name = (char *) pname;
   char ** args = (char **) in_args;
   (void) args;
+
+  //Count the number of argument and allocate space
+  int i = 0;
+  while(args[i] != NULL){
+    i++;
+  }
+  unsigned int counter = i + 1;
+  unsigned int ori_counter = i;
+
+  // Copy argument space from user args 
+  char ** arg_space = kmalloc(sizeof(char *) * (counter));
+  arg_space[i] = NULL;
+  // Copy indivdiaul string from arg 
+  for(unsigned int i = 0; i < counter - 1; i++){
+    arg_space[i] = kmalloc(sizeof(char) * strlen(args[i] + 1));
+    int error = copyinstr((const_userptr_t) args[i], arg_space[i], strlen(args[i] + 1), NULL);
+    if(error){
+      for(unsigned int j = 0; j < i; j++){
+        kfree(arg_space[j]);
+      }
+      kfree(arg_space);
+      return error;
+    }
+  }
+
+  /*
+  * Copy Prog name
+  */
+  // char * name_space = kmalloc(sizeof(char) * (strlen(name) + 1));
+  // int error_p = copyinstr(pname, name_space, (strlen(name) + 1), NULL);
+  // if(error_p){
+  //   kfree(name_space);
+  //   return error_p;
+  // }
+
+
+
+
+
 	
-/*  Copu from Runprogram  */
+/*  Copy from Runprogram  */
 	struct addrspace *as;
 	struct vnode *v;
 	vaddr_t entrypoint, stackptr;
 	int result;
-
- 
-
-
 
   /* Open the file. */
   result = vfs_open(name, O_RDONLY, 0, &v);
@@ -278,33 +313,43 @@ int sys_execv(userptr_t pname, userptr_t in_args){
     return result;
   }
 
+
+  char * all_args [counter];
+  (void) ori_counter;
+  if(all_args == NULL){
+    return ENOMEM;
+  }
+  all_args[counter] = NULL;
+  /* Copy from user stack*/ 
+  for(int i = counter - 2; i >= 0; i--){
+    stackptr -= ROUNDUP(strlen(arg_space[i]) + 1, 4);
+    result = copyoutstr(arg_space[i], (userptr_t)stackptr, strlen(arg_space[i]) + 1, NULL);
+    if(result){
+      return result;
+    }
+    all_args[i] = (char *) stackptr;
+  }
+  all_args[counter - 1] = 0;
+
+  stackptr -= ROUNDUP((counter) * sizeof(char *), 8);
+  result = copyout(all_args, (userptr_t) stackptr, ROUNDUP((counter) * sizeof(char *), 8));
+
+
+
+  for(unsigned int i = 0; i <= counter - 2; i++){
+    kfree(arg_space[i]);
+  }
+  kfree(arg_space);
+  //kfree(name_space);
+
+
   /* Warp to user mode. */
-  enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
+  enter_new_process(counter - 1 /*argc*/, (userptr_t) stackptr /*userspace addr of argv*/,
         stackptr, entrypoint);
 
   /* enter_new_process does not return. */
   panic("enter_new_process returned\n");
   return EINVAL;
-	
-
-
-	/*Below is for arg passing */
-
-	//Count the number of argument and allocate space
-	// int i = 0;
-	// while(args[i] != NULL){
-	// 	i++
-	// }
-	// int counter = i + 1;
-	// //Allocate Space
-	// char ** arg_sapce = kmalloc(sizeof(char *) * (counter));
-	// if (arg_sapce == NULL) {
-	// 	return NULL;
-	// }
-	// arg_space[counter] = NULL;
-
-	
-	
 
 }
 
