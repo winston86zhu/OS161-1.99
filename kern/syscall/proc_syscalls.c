@@ -241,7 +241,7 @@ int sys_execv(userptr_t pname, userptr_t in_args){
 
   // Copy argument space from user args 
   char ** arg_space = kmalloc(sizeof(char *) * (counter));
-  arg_space[i] = NULL;
+  
   // Copy indivdiaul string from arg 
   for(unsigned int i = 0; i < counter - 1; i++){
     arg_space[i] = kmalloc(sizeof(char) * strlen(args[i]) + 1);
@@ -254,19 +254,25 @@ int sys_execv(userptr_t pname, userptr_t in_args){
       return error;
     }
   }
+  arg_space[counter - 1] = NULL;
 
   /*
   * Copy Prog name
   */
-  // char * name_space = kmalloc(sizeof(char) * (strlen(name) + 1));
-  // int error_p = copyinstr(pname, name_space, (strlen(name) + 1), NULL);
-  // if(error_p){
-  //   kfree(name_space);
-  //   return error_p;
-  // }
+  char * name_space = kmalloc(sizeof(char) * (strlen(name) + 1));
+  int error_p = copyinstr(pname, name_space, (strlen(name) + 1), NULL);
+  if(error_p){
+    for(unsigned int j = 0; j < counter - 1; j++){
+        kfree(arg_space[j]);
+      }
+    kfree(arg_space);
+    kfree(name_space);
+    return error_p;
+  }
 
 
 /*  Copy from Runprogram  */
+
 	struct addrspace *as;
 	struct vnode *v;
 	vaddr_t entrypoint, stackptr;
@@ -318,24 +324,32 @@ int sys_execv(userptr_t pname, userptr_t in_args){
   all_args[counter] = NULL;
   /* Copy from user stack*/ 
   for(int i = counter - 2; i >= 0; i--){
-    stackptr -= ROUNDUP(strlen(arg_space[i]) + 1, 4);
+    stackptr -= ROUNDUP(strlen(arg_space[i]) + 1, 8);
     result = copyoutstr(arg_space[i], (userptr_t)stackptr, strlen(arg_space[i]) + 1, NULL);
     if(result){
       return result;
     }
     all_args[i] = (char *) stackptr;
   }
-  all_args[counter - 1] = 0;
+  all_args[counter - 1] = NULL;
 
   stackptr -= ROUNDUP((counter) * sizeof(char *), 8);
-  copyout(all_args, (userptr_t) stackptr, ROUNDUP((counter) * sizeof(char *), 8));
+  result = copyout(all_args, (userptr_t) stackptr, ROUNDUP((counter) * sizeof(char *), 8));
+  if(result){
+    for(unsigned int i = 0; i < counter - 1; i++){
+      kfree(arg_space[i]);
+    }
+    kfree(arg_space);
+    kfree(name_space);
+    return ENOMEM;
+  }
 
 
-  for(unsigned int i = 0; i <= counter - 2; i++){
+  for(unsigned int i = 0; i < counter - 1; i++){
     kfree(arg_space[i]);
   }
   kfree(arg_space);
-  //kfree(name_space);
+  kfree(name_space);
 
 
   /* Warp to user mode. */
