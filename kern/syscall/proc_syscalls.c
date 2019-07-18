@@ -16,6 +16,7 @@
 #include <vfs.h>
 #include <test.h>
 #include <kern/fcntl.h>
+#include "opt-A3.h"
 
 
 
@@ -106,6 +107,87 @@ void sys__exit(int exitcode) {
   /* thread_exit() does not return, so we should never get here */
   panic("return from thread_exit in sys_exit\n");
 }
+
+#if OPT_A3
+void kill_thread(int exitcode){
+  struct addrspace *as;
+  struct proc *p = curproc;
+  (void) p;
+  (void) exitcode;
+  /* for now, just include this to keep the compiler from complaining about
+     an unused variable */
+ 
+
+
+  DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",exitcode);
+
+  KASSERT(curproc->p_addrspace != NULL);
+  as_deactivate();
+  /*
+   * clear p_addrspace before calling as_destroy. Otherwise if
+   * as_destroy sleeps (which is quite possible) when we
+   * come back we'll be calling as_activate on a
+   * half-destroyed address space. This tends to be
+   * messily fatal.
+   */
+  as = curproc_setas(NULL);
+  as_destroy(as);
+
+  /* detach this thread from its process */
+  /* note: curproc cannot be used after this call */
+  proc_remthread(curthread);
+
+  /* if this is the last user process in the system, proc_destroy()
+     will wake up the kernel menu thread */
+
+  KASSERT(lk_proc);
+  KASSERT( p != NULL);
+
+  //lock_acquire(p->proc_lock);
+  
+  // If parent is waiting on this, then wake it up
+  //lock_release(p->proc_lock);
+ 
+  lock_acquire(lk_proc);
+  for(int i = array_num(all_process) - 1; i > 0; i--){
+    struct proc * get_proc = array_get(all_process, i);
+    if(get_proc->parent_pid == p->pid){//I am dying, telling my alive children& deadchildren
+      if(get_proc->exit_status == true){
+        //Died Chidlren
+        proc_destroy(get_proc);
+      } else if (get_proc->exit_status == false){
+        //Orphan 
+        get_proc->parent_alive = true;
+      }
+    }
+  }
+  
+  if(p->parent_alive == false){
+    //lock_acquire(lk_proc);
+    p->exitcode = _MKWAIT_SIG(exitcode);
+    
+    p->exit_status = true;
+    //
+    lock_acquire(p->proc_lock);
+    cv_broadcast(p->proc_cv, p->proc_lock);
+    lock_release(p->proc_lock);
+    //lock_release(lk_proc);
+  } else {
+    proc_destroy(p);
+  }
+  lock_release(lk_proc);
+  
+
+  proc_destroy(p);
+  
+
+  
+  thread_exit();
+  /* thread_exit() does not return, so we should never get here */
+  panic("return from thread_exit in kill_thread\n");
+}
+
+#endif
 
 #if OPT_A2
 
