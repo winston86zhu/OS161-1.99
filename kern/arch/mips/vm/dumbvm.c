@@ -14,7 +14,7 @@
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE UNIVERSITY AND CONTRIBUTORS ``AS IS'' AND
+ * THIS SOFTWARE IS PROVIDED BY THE UNIVERSITY AND CONTRIBUTORS ``AS IS'' and
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED.  IN NO EVENT SHALL THE UNIVERSITY OR CONTRIBUTORS BE LIABLE
@@ -37,6 +37,7 @@
 #include <mips/tlb.h>
 #include <addrspace.h>
 #include <vm.h>
+#include "opt-A3.h"
 
 /*
  * Dumb MIPS-only "VM system" that is intended to only be just barely
@@ -56,6 +57,7 @@ vm_bootstrap(void)
 {
 	/* Do nothing. */
 }
+
 
 static
 paddr_t
@@ -87,7 +89,6 @@ void
 free_kpages(vaddr_t addr)
 {
 	/* nothing - leak the memory. */
-
 	(void)addr;
 }
 
@@ -119,14 +120,16 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	DEBUG(DB_VM, "dumbvm: fault: 0x%x\n", faultaddress);
 
 	switch (faulttype) {
-	    case VM_FAULT_READONLY:
+		//This corresponding to write to a read-only memory
+	    case VM_FAULT_READONLY: 
 		/* We always create pages read-write, so we can't get this */
-		panic("dumbvm: got VM_FAULT_READONLY\n");
+			panic("dumbvm: got VM_FAULT_READONLY\n");
+			return EFAULT;
 	    case VM_FAULT_READ:
 	    case VM_FAULT_WRITE:
-		break;
+			break;
 	    default:
-		return EINVAL;
+			return EINVAL;
 	}
 
 	if (curproc == NULL) {
@@ -161,6 +164,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	KASSERT((as->as_pbase2 & PAGE_FRAME) == as->as_pbase2);
 	KASSERT((as->as_stackpbase & PAGE_FRAME) == as->as_stackpbase);
 
+	/* Virtual to physical translation */
 	vbase1 = as->as_vbase1;
 	vtop1 = vbase1 + as->as_npages1 * PAGE_SIZE;
 	vbase2 = as->as_vbase2;
@@ -181,11 +185,23 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 		return EFAULT;
 	}
 
+
 	/* make sure it's page-aligned */
 	KASSERT((paddr & PAGE_FRAME) == paddr);
 
 	/* Disable interrupts on this CPU while frobbing the TLB. */
 	spl = splhigh();
+
+	/*If the TLB is full, then we choose a RANDOM slot to flush*/
+#if OPT_A3
+	ehi = faultaddress;
+	elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
+	tlb_random(ehi, elo);
+	splx(spl);
+	(void) i;
+	return 0;
+
+#else 
 
 	for (i=0; i<NUM_TLB; i++) {
 		tlb_read(&ehi, &elo, i);
@@ -200,9 +216,12 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 		return 0;
 	}
 
+
 	kprintf("dumbvm: Ran out of TLB entries - cannot handle page fault\n");
+
 	splx(spl);
 	return EFAULT;
+#endif
 }
 
 struct addrspace *
@@ -212,6 +231,10 @@ as_create(void)
 	if (as==NULL) {
 		return NULL;
 	}
+	// Set flag to be empty at starting point
+#if OPT_A3
+	as->add_load_completed = false;
+#endif
 
 	as->as_vbase1 = 0;
 	as->as_pbase1 = 0;
@@ -338,7 +361,12 @@ as_prepare_load(struct addrspace *as)
 int
 as_complete_load(struct addrspace *as)
 {
+	/*Should let the adress know we finished loading*/
+#if OPT_A3
+	as->add_load_completed = true;
+#else 
 	(void)as;
+#endif
 	return 0;
 }
 
@@ -371,6 +399,8 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		as_destroy(new);
 		return ENOMEM;
 	}
+
+
 
 	KASSERT(new->as_pbase1 != 0);
 	KASSERT(new->as_pbase2 != 0);

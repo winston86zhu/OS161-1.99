@@ -124,8 +124,8 @@ int runprogram(char *progname)
 	}
 
 #if OPT_A2
-	//char ** all_args = kmalloc(sizeof(char *) * (num_arg + 1));
-	char * all_args[num_arg + 1];
+	char ** all_args = kmalloc(sizeof(char *) * (num_arg + 1));
+	//char * all_args[num_arg + 1];
 	if(all_args == NULL){
 		return ENOMEM;
 	}
@@ -135,6 +135,10 @@ int runprogram(char *progname)
 		stackptr -= ROUNDUP(strlen(args[i]) + 1, 8);
 		result = copyoutstr(args[i], (userptr_t)stackptr, strlen(args[i]) + 1, NULL);
 		if(result){
+			// for(int j = 0; j < i; j++){
+   //      		kfree(all_args[j]);
+   //    		}
+       		kfree(all_args);
 			return result;
 		}
 		all_args[i] = (char *) stackptr;
@@ -142,10 +146,18 @@ int runprogram(char *progname)
 	stackptr -= ROUNDUP((num_arg + 1) * sizeof(char *), 8);
 	result = copyout(all_args, (userptr_t) stackptr, (num_arg + 1) * sizeof(char *));
 	if(result){
+		// for(unsigned int j = 0; j < (num_arg + 1); j++){
+  //       		kfree(all_args[j]);
+  //     	}
+   		kfree(all_args);
 		return result;
 	}
 
-	//kfree(all_args);
+
+	// for(unsigned int j = 0; j < (num_arg ); j++){
+	// 	kfree(all_args[j]);
+ //  	}	
+	kfree(all_args);
 	enter_new_process(num_arg /*argc*/, (userptr_t) stackptr /*userspace addr of argv*/,
 			  stackptr, entrypoint);
 
