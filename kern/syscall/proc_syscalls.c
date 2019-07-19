@@ -178,7 +178,7 @@ void kill_thread(int exitcode){
   lock_release(lk_proc);
   
 
-  proc_destroy(p);
+  //proc_destroy(p);
   
 
   

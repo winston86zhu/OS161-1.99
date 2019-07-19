@@ -203,29 +203,30 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 
 
 
-	for (i=0; i<NUM_TLB; i++) {
-		tlb_read(&ehi, &elo, i);
-		if (elo & TLBLO_VALID) {
-			continue;
-		}
-#if OPT_A3
-		if(readonly_flag && as->add_load_completed == true){
-			elo &= ~TLBLO_DIRTY;
-		}
-#endif
-		ehi = faultaddress;
-		elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
-		DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
-		tlb_write(ehi, elo, i);
-		splx(spl);
-		return 0;
-	}
+// 	for (i=0; i<NUM_TLB; i++) {
+// 		tlb_read(&ehi, &elo, i);
+// 		if (elo & TLBLO_VALID) {
+// 			continue;
+// 		}
+
+// 		ehi = faultaddress;
+// 		elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
+// #if OPT_A3
+// 		if(readonly_flag && (as->add_load_completed == true)){
+// 			elo &= ~TLBLO_DIRTY;
+// 		}
+// #endif
+// 		DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
+// 		tlb_write(ehi, elo, i);
+// 		splx(spl);
+// 		return 0;
+// 	}
 
 	#if OPT_A3
 	ehi = faultaddress;
 	elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
 
-	if(readonly_flag && (as->add_load_completed == true)){
+	if(as->add_load_completed == true && faultaddress >= vbase1 && faultaddress < vtop1){
 		elo &= ~TLBLO_DIRTY;
 	}
 

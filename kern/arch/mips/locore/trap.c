@@ -240,6 +240,7 @@ mips_trap(struct trapframe *tf)
 	switch (code) {
 	case EX_MOD:
 		if (vm_fault(VM_FAULT_READONLY, tf->tf_vaddr)==0) {
+			//kill_curthread(tf->tf_epc, VM_FAULT_READONLY, tf->tf_vaddr);
 			goto done;
 		}
 		break;
