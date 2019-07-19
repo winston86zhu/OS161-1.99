@@ -38,6 +38,7 @@
 #include <addrspace.h>
 #include <vm.h>
 #include "opt-A3.h"
+#include <syscall.h>
 
 /*
  * Dumb MIPS-only "VM system" that is intended to only be just barely
@@ -116,6 +117,9 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	int spl;
 
 	faultaddress &= PAGE_FRAME;
+#if OPT_A3
+	bool readonly_flag = false;
+#endif
 
 	DEBUG(DB_VM, "dumbvm: fault: 0x%x\n", faultaddress);
 
@@ -123,7 +127,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 		//This corresponding to write to a read-only memory
 	    case VM_FAULT_READONLY: 
 		/* We always create pages read-write, so we can't get this */
-			panic("dumbvm: got VM_FAULT_READONLY\n");
+			//panic("dumbvm: got VM_FAULT_READONLY\n");
 			return EFAULT;
 	    case VM_FAULT_READ:
 	    case VM_FAULT_WRITE:
@@ -173,6 +177,9 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	stacktop = USERSTACK;
 
 	if (faultaddress >= vbase1 && faultaddress < vtop1) {
+#if OPT_A3
+		readonly_flag = true;
+#endif
 		paddr = (faultaddress - vbase1) + as->as_pbase1;
 	}
 	else if (faultaddress >= vbase2 && faultaddress < vtop2) {
@@ -193,21 +200,19 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	spl = splhigh();
 
 	/*If the TLB is full, then we choose a RANDOM slot to flush*/
-#if OPT_A3
-	ehi = faultaddress;
-	elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
-	tlb_random(ehi, elo);
-	splx(spl);
-	(void) i;
-	return 0;
 
-#else 
+
 
 	for (i=0; i<NUM_TLB; i++) {
 		tlb_read(&ehi, &elo, i);
 		if (elo & TLBLO_VALID) {
 			continue;
 		}
+#if OPT_A3
+		if(readonly_flag && as->add_load_completed == true){
+			elo &= ~TLBLO_DIRTY;
+		}
+#endif
 		ehi = faultaddress;
 		elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
 		DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
@@ -216,12 +221,26 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 		return 0;
 	}
 
+	#if OPT_A3
+	ehi = faultaddress;
+	elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
+
+	if(readonly_flag && (as->add_load_completed == true)){
+		elo &= ~TLBLO_DIRTY;
+	}
+
+	tlb_random(ehi, elo);
+	splx(spl);
+	(void) i;
+	return 0;
+	#endif
+
 
 	kprintf("dumbvm: Ran out of TLB entries - cannot handle page fault\n");
 
 	splx(spl);
 	return EFAULT;
-#endif
+
 }
 
 struct addrspace *
