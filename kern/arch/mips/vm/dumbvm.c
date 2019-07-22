@@ -48,15 +48,51 @@
 /* under dumbvm, always have 48k of user stack */
 #define DUMBVM_STACKPAGES    12
 
+#if OPT_A3
+struct mem_frame{
+	bool occupancy;
+	paddr_t frame_start;
+	unsigned int num_continuou;
+};
+
+#endif 
+
 /*
  * Wrap rma_stealmem in a spinlock.
  */
 static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
+static struct mem_frame * Coremap;
+static paddr_t map_start;
+static paddr_t map_end;
+static int map_size;
+static bool bs_done = false;
 
 void
 vm_bootstrap(void)
 {
-	/* Do nothing. */
+#if OPT_A3
+	/*Get the remaining physical memory in the system*/
+	ram_getsize(&map_start, &map_end);
+	Coremap = (struct mem_frame *)PADDR_TO_KVADDR(map_start);
+
+	map_size = ((map_end  - map_start) / PAGE_SIZE);
+	paddr_t map_ava_start = map_start + map_size * (sizeof(struct mem_frame));
+	map_ava_start = ROUNDUP(map_ava_start, PAGE_SIZE);
+	int occupied_frame = DIVROUNDUP(map_size * sizeof(struct mem_frame), PAGE_SIZE);
+
+	for ( int i=0; i<map_size; i++) {
+		struct mem_frame mp;
+		mp.occupancy = (i < occupied_frame);
+		mp.frame_start = map_start + PAGE_SIZE * i;
+		mp.num_continuou = 0;
+		Coremap[i] = mp;
+	}
+
+	bs_done = true;
+	kprintf("SSSS");
+
+
+#endif
 }
 
 
@@ -67,9 +103,37 @@ getppages(unsigned long npages)
 	paddr_t addr;
 
 	spinlock_acquire(&stealmem_lock);
+#if OPT_A3
+	if(bs_done){
+		unsigned long counti_num = 0;
+		unsigned long cut_off = 0;
+		for(int i = 0; i < map_size; i++){
+			if(Coremap[i].occupancy == true){
+				counti_num = 0;
+				continue;
+			} else {
+				counti_num++;
+				if(counti_num == npages){
+					cut_off = i;
+					break;
+				}
+			}
+		}
+			Coremap[cut_off].num_continuou = counti_num - 1;//Check if -1
+			for (unsigned long m = 0; m < npages; m++){
+				Coremap[cut_off + m].occupancy = true;
+			}
+			addr = map_start + cut_off * PAGE_SIZE;	 // check
+	}
+	 else {
+		/* Only ram_stealmem when eveyrthing starts, tehn we want to manage our own Coremap*/
+		addr = ram_stealmem(npages);
+	}
 
+
+#else
 	addr = ram_stealmem(npages);
-	
+#endif
 	spinlock_release(&stealmem_lock);
 	return addr;
 }
@@ -89,8 +153,25 @@ alloc_kpages(int npages)
 void 
 free_kpages(vaddr_t addr)
 {
-	/* nothing - leak the memory. */
+		/* nothing - leak the memory. */
+#if OPT_A3
+	spinlock_acquire(&stealmem_lock);
+
+	paddr_t to_p_addr = (addr - MIPS_KSEG0);
+	int num_prior = (to_p_addr - map_start) / PAGE_SIZE;
+	/* Set the occuped memory false*/
+	for ( unsigned int i = 0; i < Coremap[num_prior].num_continuou; i++){
+		(Coremap[num_prior + i].occupancy = false);
+
+	}
+	Coremap[num_prior].num_continuou = 0;
+
+
+
+	spinlock_release(&stealmem_lock);
+#else
 	(void)addr;
+#endif
 }
 
 void
@@ -270,7 +351,18 @@ as_create(void)
 void
 as_destroy(struct addrspace *as)
 {
+#if OPT_A3
+	//Call free_kpage on frames for each segment
+	kfree((void *)PADDR_TO_KVADDR(as->as_pbase1));
+	kfree((void *)PADDR_TO_KVADDR(as->as_pbase2));
+	kfree((void *)PADDR_TO_KVADDR(as->as_stackpbase));
+	//kfree the page tables
+
+	//free_kpages(PADDR_TO_KVADDR(as->as_pa));
+
+#else
 	kfree(as);
+#endif // UW
 }
 
 void
