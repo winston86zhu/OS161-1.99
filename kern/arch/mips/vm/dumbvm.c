@@ -74,7 +74,7 @@ void
 vm_bootstrap(void)
 {
 	/* Do nothing. */
-#if OPT_A3
+#if OPT_A2
 	/*Get the remaining physical memory in the system*/
 	ram_getsize(&map_start, &map_end);
 	Coremap = (struct mem_frame *)PADDR_TO_KVADDR(map_start);
@@ -93,6 +93,7 @@ vm_bootstrap(void)
 	}
 
 	bs_done = true;
+	kprintf("SSSS");
 
 
 #endif
@@ -106,9 +107,30 @@ getppages(unsigned long npages)
 	paddr_t addr;
 
 	spinlock_acquire(&stealmem_lock);
-#if OPT_A3
+#if OPT_A2
 	if(!bs_done){
 		for(int i = 0; i < map_size; i ++){
+			if(Coremap[i].occupancy == true){
+				continue;
+			} else {
+				unsigned long counti_num = 0;
+				for(unsigned int j = i ; j < npages; j++){
+					if(Coremap[j].occupancy){
+						counti_num = 0;
+						break;
+					} else {
+						counti_num++;
+						if(counti_num == npages){
+							break;
+						}
+					}
+				}
+				Coremap[i].num_continuou = counti_num - 1;//Check if -1
+				for (unsigned long m = 0; m < npages; m++){
+					Coremap[i + m].occupancy = true;
+				}
+				addr = map_start + i * PAGE_SIZE;	 // check
+			}
 
 		}
 
@@ -142,8 +164,26 @@ void
 free_kpages(vaddr_t addr)
 {
 	/* nothing - leak the memory. */
+#if OPT_A2
+	spinlock_acquire(&stealmem_lock);
+
+	paddr_t to_p_addr = (addr - MIPS_KSEG0);
+	int num_prior = (to_p_addr - map_start) / PAGE_SIZE;
+	/* Set the occuped memory false*/
+	for ( unsigned int i = 0; i < Coremap[num_prior].num_continuou; i++){
+		(Coremap[num_prior + i].occupancy = false);
+
+	}
+	Coremap[num_prior].num_continuou = 0;
+
+
+
+	spinlock_release(&stealmem_lock);
+#else
 	(void)addr;
+#endif
 }
+
 
 void
 vm_tlbshootdown_all(void)
@@ -322,7 +362,18 @@ as_create(void)
 void
 as_destroy(struct addrspace *as)
 {
+#if OPT_A2
+	//Call free_kpage on frames for each segment
+	kfree((void *)PADDR_TO_KVADDR(as->as_pbase1));
+	kfree((void *)PADDR_TO_KVADDR(as->as_pbase2));
+	kfree((void *)PADDR_TO_KVADDR(as->as_stackpbase));
+	//kfree the page tables
+
+	//free_kpages(PADDR_TO_KVADDR(as->as_pa));
+
+#else
 	kfree(as);
+#endif // UW
 }
 
 void
@@ -434,7 +485,7 @@ int
 as_complete_load(struct addrspace *as)
 {
 	/*Should let the adress know we finished loading*/
-#if OPT_A3
+#if OPT_A2
 	as->add_load_completed = true;
 #else 
 	(void)as;
