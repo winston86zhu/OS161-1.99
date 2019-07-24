@@ -92,8 +92,6 @@ vm_bootstrap(void)
 	}
 
 	bs_done = true;
-	kprintf("SSSS");
-
 
 #endif
 }
@@ -130,8 +128,7 @@ getppages(unsigned long npages)
 			addr = map_start + cut_off * PAGE_SIZE;	 // check
 	}
 	 else {
-		/* Only ram_stealmem when eveyrthing starts, tehn we want to manage our own Coremap*/
-		addr = ram_stealmem(npages);
+	 	addr = ram_stealmem(npages);
 	}
 
 
@@ -170,6 +167,21 @@ free_kpages(vaddr_t addr)
 
 	}
 	Coremap[num_prior].num_continuou = 0;
+
+	// paddr_t maPaddr = addr - MIPS_KSEG0;
+	// int i = 0;
+	// for(; i<map_size; i++)
+	// {
+	// 	if(Coremap[i].frame_start == maPaddr)
+	// 	{
+	// 		break;
+	// 	}
+	// }
+	// int n = Coremap[i].num_continuou + i;
+	// for(int j=i; j<=n; j++)
+	// {
+	// 	Coremap[j].occupancy = false;
+	// }
 
 
 

@@ -31,7 +31,6 @@
 void sys__exit(int exitcode) {
   struct addrspace *as;
   struct proc *p = curproc;
-  (void) p;
   (void) exitcode;
   /* for now, just include this to keep the compiler from complaining about
      an unused variable */
@@ -54,7 +53,7 @@ void sys__exit(int exitcode) {
 
   /* detach this thread from its process */
   /* note: curproc cannot be used after this call */
-  proc_remthread(curthread);
+  
 
   /* if this is the last user process in the system, proc_destroy()
      will wake up the kernel menu thread */
@@ -67,38 +66,43 @@ void sys__exit(int exitcode) {
   
   // If parent is waiting on this, then wake it up
   //lock_release(p->proc_lock);
- 
+  struct proc * get_proc;
   lock_acquire(lk_proc);
-  for(int i = array_num(all_process) - 1; i > 0; i--){
-  	struct proc * get_proc = array_get(all_process, i);
-  	if(get_proc->parent_pid == p->pid){//I am dying, telling my alive children& deadchildren
+  for(int i = array_num(all_process) - 1; i >= 0; i--){
+  	get_proc = array_get(all_process, i);
+  	if(get_proc != NULL && get_proc->parent_pid == p->pid){//I am dying, telling my alive children& deadchildren
   		if(get_proc->exit_status == true){
   			//Died Chidlren
   			proc_destroy(get_proc);
   		} else if (get_proc->exit_status == false){
   			//Orphan 
   			get_proc->parent_alive = true;
+        get_proc->parent_pid =  -1;
   		}
   	}
   }
-  
-  if(p->parent_alive == false){
+  lock_release(lk_proc);
+  proc_remthread(curthread);
+  if(p->parent_pid != -1){
   	//lock_acquire(lk_proc);
+    p->exit_status = true;
   	p->exitcode = _MKWAIT_EXIT(exitcode);
   	
-  	p->exit_status = true;
+  	
   	//
   	lock_acquire(p->proc_lock);
-  	cv_broadcast(p->proc_cv, p->proc_lock);
+  	cv_signal(p->proc_cv, p->proc_lock);
+
   	lock_release(p->proc_lock);
   	//lock_release(lk_proc);
   } else {
   	proc_destroy(p);
   }
-  lock_release(lk_proc);
+  
   
   
   #else
+  proc_remthread(curthread);
   proc_destroy(p);
   
   #endif
@@ -108,86 +112,6 @@ void sys__exit(int exitcode) {
   panic("return from thread_exit in sys_exit\n");
 }
 
-#if OPT_A3
-void kill_thread(int exitcode){
-  struct addrspace *as;
-  struct proc *p = curproc;
-  (void) p;
-  (void) exitcode;
-  /* for now, just include this to keep the compiler from complaining about
-     an unused variable */
- 
-
-
-  DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",exitcode);
-
-  KASSERT(curproc->p_addrspace != NULL);
-  as_deactivate();
-  /*
-   * clear p_addrspace before calling as_destroy. Otherwise if
-   * as_destroy sleeps (which is quite possible) when we
-   * come back we'll be calling as_activate on a
-   * half-destroyed address space. This tends to be
-   * messily fatal.
-   */
-  as = curproc_setas(NULL);
-  as_destroy(as);
-
-  /* detach this thread from its process */
-  /* note: curproc cannot be used after this call */
-  proc_remthread(curthread);
-
-  /* if this is the last user process in the system, proc_destroy()
-     will wake up the kernel menu thread */
-
-  KASSERT(lk_proc);
-  KASSERT( p != NULL);
-
-  //lock_acquire(p->proc_lock);
-  
-  // If parent is waiting on this, then wake it up
-  //lock_release(p->proc_lock);
- 
-  lock_acquire(lk_proc);
-  for(int i = array_num(all_process) - 1; i > 0; i--){
-    struct proc * get_proc = array_get(all_process, i);
-    if(get_proc->parent_pid == p->pid){//I am dying, telling my alive children& deadchildren
-      if(get_proc->exit_status == true){
-        //Died Chidlren
-        proc_destroy(get_proc);
-      } else if (get_proc->exit_status == false){
-        //Orphan 
-        get_proc->parent_alive = true;
-      }
-    }
-  }
-  
-  if(p->parent_alive == false){
-    //lock_acquire(lk_proc);
-    p->exitcode = _MKWAIT_SIG(exitcode);
-    
-    p->exit_status = true;
-    //
-    lock_acquire(p->proc_lock);
-    cv_broadcast(p->proc_cv, p->proc_lock);
-    lock_release(p->proc_lock);
-    //lock_release(lk_proc);
-  } else {
-    proc_destroy(p);
-  }
-  lock_release(lk_proc);
-  
-
-  //proc_destroy(p);
-  
-
-  
-  thread_exit();
-  /* thread_exit() does not return, so we should never get here */
-  panic("return from thread_exit in kill_thread\n");
-}
-
-#endif
 
 #if OPT_A2
 
@@ -231,7 +155,7 @@ int sys_fork(struct trapframe *trp, pid_t * ret){
   if(succeed){
     kfree(new_as);
     proc_destroy(new_proc);
-    return EMPROC;//ENOMEM
+    return succeed;//ENOMEM
   }
 
   *ret = new_proc->pid;
@@ -275,29 +199,35 @@ sys_waitpid(pid_t pid,
     return(EINVAL);
   }
 
-
+//kprintf("HH");
 #if OPT_A2
   /*Only a parent can call waitpid on its children*/
   KASSERT(all_process);
-  
+  lock_acquire(lk_proc);
   struct proc * my_child = array_get(all_process, proc_search(all_process, pid));
+  lock_release(lk_proc);
   if(my_child == NULL){
   	*retval = -1;
-    return ECHILD;
+    return EINVAL;
   } else {
     lock_acquire(my_child->proc_lock);
     if(!my_child->exit_status){
+      //kprintf("JJ");
       cv_wait(my_child->proc_cv, my_child->proc_lock);
+      //kprintf("QQ");
     }
-    lock_release(my_child->proc_lock);
+    
     //After calling MKWAITEXIT (exitcode -> exit_status)
     // exits_status is alive 
     exitstatus = my_child->exitcode;
+    lock_release(my_child->proc_lock);
   }
+
 #else
   /* for now, just pretend the exitstatus is 0 */
   exitstatus = 0;
 #endif
+
   result = copyout((void *)&exitstatus,status,sizeof(int));
   if (result) {
     return(result);
@@ -368,7 +298,9 @@ int sys_execv(userptr_t pname, userptr_t in_args){
 
   /* Create a new address space. */
   as = curproc_getas();
-  as_destroy(as);
+  if(as != NULL){
+    as_destroy(as);
+  }
   as = as_create();
   if (as ==NULL) {
     vfs_close(v);

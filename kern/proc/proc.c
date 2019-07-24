@@ -211,10 +211,10 @@ proc_destroy(struct proc *proc)
 #if OPT_A2
 
 	
-	lock_acquire(proc->proc_lock);
-	proc->exit_status = true;
+	//lock_acquire(proc->proc_lock);
+	//proc->exit_status = true;
 	cv_destroy(proc->proc_cv);
-	lock_release(proc->proc_lock);
+	//lock_release(proc->proc_lock);
 	//kprintf("AAA");
 	lock_destroy(proc->proc_lock);
 	//kprintf("BBB");
@@ -260,8 +260,9 @@ proc_bootstrap(void)
 {
 #if OPT_A2
 	lk_proc = lock_create("Process_Lock_All");
-	counter = 2;
+	counter = 1;
 	all_process = array_create();
+	array_init(all_process);
 	//array_init(all_process);
 	/*for(int i = 0; i < MAXP; i++){
 		pid_table[i] = 0;
@@ -345,10 +346,14 @@ proc_create_runprogram(const char *name)
 	proc_count++;
 #if OPT_A2
 	proc->exit_status = false;
+	//proc->parent_alive = true;
+	proc->parent_pid = -1;
 	proc->proc_cv = cv_create("fork_cv");
 	proc->proc_lock = lock_create("individual_lock");
 	proc->pid = counter;
+	lock_acquire(lk_proc);
 	counter++;
+	lock_release(lk_proc);
 	array_add(all_process, proc, NULL);
 #endif
 
@@ -460,7 +465,6 @@ int proc_search(struct array * all_process, pid_t pid){
 	struct proc *ret_proc;
 	for(int i = array_num(all_process) - 1; i > 0 ; --i){
 		ret_proc = array_get(all_process, i);
-		KASSERT(ret_proc != NULL);
 		if(ret_proc -> pid == pid){
 			return(i);
 		}
